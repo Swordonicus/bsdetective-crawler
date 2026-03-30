@@ -1,10 +1,14 @@
-name	"bsdetective-crawler"
-version	"2.0.0"
-description	"BSDetective autonomous persuasion telemetry pipeline"
-type	"module"
-main	"crawler.js"
-scripts	
-crawl	"node crawler.js"
-dependencies	
-rss-parser	"^3.13.0"
-@supabase/supabase-js	"^2.39.0"
+{
+  "name": "bsdetective-crawler",
+  "version": "2.0.0",
+  "description": "BSDetective autonomous persuasion telemetry pipeline",
+  "type": "module",
+  "main": "crawler.js",
+  "scripts": {
+    "crawl": "node crawler.js"
+  },
+  "dependencies": {
+    "rss-parser": "^3.13.0",
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
