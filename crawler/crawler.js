@@ -207,10 +207,10 @@ async function scanContent(text, articleUrl) {
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({
-      content:     text,
-      source:      articleUrl,
-      scan_source: 'crawler',
-      force_model: 'haiku',
+      text:  text,
+      url:   articleUrl,
+      title: '',
+      tier:  'free',
     }),
   });
 
