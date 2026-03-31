@@ -26,9 +26,9 @@ const REQUEST_DELAY_MS      = 1200;
 const FEEDS = [
   // ── South Africa ──────────────────────────────────────────────────────────
   {
-    feed_url:       'https://www.news24.com/news24/rss',
-    publisher_name: 'News24',
-    publisher_domain: 'news24.com',
+    feed_url:       'https://www.timeslive.co.za/rss/',
+    publisher_name: 'TimesLive',
+    publisher_domain: 'timeslive.co.za',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'general_news',
   },
@@ -293,19 +293,26 @@ async function storeScan(scan) {
 }
 
 async function logScanStatus(meta, status, reason = null) {
-  await supabase.from('crawler_scans').insert({
-    feed_url:        meta.feed_url,
-    publisher_name:  meta.publisher_name,
-    publisher_domain: meta.publisher_domain,
-    article_url:     meta.url ?? null,
-    headline_text:   meta.title ?? null,
-    scan_source:     'crawler',
-    scan_status:     status,
-    scan_status_reason: reason,
-    analyzer_version: SCAN_VERSION.analyzer,
-    taxonomy_version: SCAN_VERSION.taxonomy,
-    scanned_at:      new Date().toISOString(),
-  }).catch(() => {}); // non-blocking — don't let logging failures kill the run
+  try {
+    const { error } = await supabase.from('crawler_scans').insert({
+      feed_url:           meta.feed_url,
+      publisher_name:     meta.publisher_name,
+      publisher_domain:   meta.publisher_domain,
+      article_url:        meta.url ?? null,
+      headline_text:      meta.title ?? null,
+      scan_source:        'crawler',
+      scan_status:        status,
+      scan_status_reason: reason,
+      analyzer_version:   SCAN_VERSION.analyzer,
+      taxonomy_version:   SCAN_VERSION.taxonomy,
+      scanned_at:         new Date().toISOString(),
+    });
+    if (error) {
+      console.warn('  ⚠️  logScanStatus insert failed:', error.message);
+    }
+  } catch (e) {
+    console.warn('  ⚠️  logScanStatus failed silently:', e.message);
+  }
 }
 
 // ─── FEED PROCESSOR ──────────────────────────────────────────────────────────
