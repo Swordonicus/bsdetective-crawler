@@ -13,10 +13,11 @@ const SCAN_VERSION = {
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL          = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_ANON_KEY     = process.env.SUPABASE_ANON_KEY;
 const ANALYZE_URL           = `${SUPABASE_URL}/functions/v1/analyze-vnext`;
 
 const MAX_ARTICLES_PER_FEED = 5;
-const MIN_CONTENT_LENGTH    = 300;
+const MIN_CONTENT_LENGTH    = 100;
 const MAX_CONTENT_LENGTH    = 8000;
 const REQUEST_DELAY_MS      = 1200;
 
@@ -26,16 +27,16 @@ const REQUEST_DELAY_MS      = 1200;
 const FEEDS = [
   // ── South Africa ──────────────────────────────────────────────────────────
   {
-    feed_url:       'https://www.timeslive.co.za/rss/',
-    publisher_name: 'TimesLive',
-    publisher_domain: 'timeslive.co.za',
+    feed_url:       'https://www.sabcnews.com/sabcnews/feed/',
+    publisher_name: 'SABC News',
+    publisher_domain: 'sabcnews.com',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'general_news',
   },
   {
-    feed_url:       'https://www.dailymaverick.co.za/feed/',
-    publisher_name: 'Daily Maverick',
-    publisher_domain: 'dailymaverick.co.za',
+    feed_url:       'https://www.groundup.org.za/feed/',
+    publisher_name: 'GroundUp',
+    publisher_domain: 'groundup.org.za',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'politics',
   },
@@ -70,9 +71,9 @@ const FEEDS = [
     media_class: 'tabloid', topic_class: 'politics',
   },
   {
-    feed_url:       'https://www.express.co.uk/news/politics/rss',
-    publisher_name: 'Daily Express',
-    publisher_domain: 'express.co.uk',
+    feed_url:       'https://www.independent.co.uk/news/uk/politics/rss',
+    publisher_name: 'The Independent',
+    publisher_domain: 'independent.co.uk',
     region: 'UK', country: 'United Kingdom',
     media_class: 'tabloid', topic_class: 'politics',
   },
@@ -93,9 +94,9 @@ const FEEDS = [
     media_class: 'digital_native', topic_class: 'politics',
   },
   {
-    feed_url:       'https://feeds.huffpost.com/huffingtonpost/raw_feed',
-    publisher_name: 'HuffPost',
-    publisher_domain: 'huffpost.com',
+    feed_url:       'https://feeds.npr.org/1014/rss.xml',
+    publisher_name: 'NPR Politics',
+    publisher_domain: 'npr.org',
     region: 'US', country: 'United States',
     media_class: 'digital_native', topic_class: 'general_news',
   },
@@ -202,7 +203,8 @@ async function scanContent(text, articleUrl) {
     method: 'POST',
     headers: {
       'Content-Type':  'application/json',
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'apikey':        SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({
       content:     text,
@@ -305,6 +307,7 @@ async function logScanStatus(meta, status, reason = null) {
       scan_status_reason: reason,
       analyzer_version:   SCAN_VERSION.analyzer,
       taxonomy_version:   SCAN_VERSION.taxonomy,
+      prompt_version:     SCAN_VERSION.prompt,
       scanned_at:         new Date().toISOString(),
     });
     if (error) {
@@ -408,8 +411,8 @@ async function main() {
   console.log(`🔖 ${JSON.stringify(SCAN_VERSION)}`);
   console.log(`📰 Feeds: ${FEEDS.length} | Max per feed: ${MAX_ARTICLES_PER_FEED}`);
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing env vars: SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_ANON_KEY) {
+    console.error('❌ Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, or SUPABASE_ANON_KEY');
     process.exit(1);
   }
 
