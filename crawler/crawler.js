@@ -16,7 +16,7 @@ const SUPABASE_SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY     = process.env.SUPABASE_ANON_KEY;
 const ANALYZE_URL           = `${SUPABASE_URL}/functions/v1/analyze-vnext`;
 
-const MAX_ARTICLES_PER_FEED = 5;
+const MAX_ARTICLES_PER_FEED = 3;      // 3 × 14 feeds = ~42 scans per run (~8 mins)
 const MIN_CONTENT_LENGTH    = 100;
 const MAX_CONTENT_LENGTH    = 8000;
 const REQUEST_DELAY_MS      = 1200;
@@ -199,20 +199,29 @@ async function isAlreadyScanned(contentHash) {
 }
 
 async function scanContent(text, articleUrl) {
-  const response = await fetch(ANALYZE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'apikey':        SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      text:  text,
-      url:   articleUrl,
-      title: '',
-      tier:  'free',
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout per scan
+
+  let response;
+  try {
+    response = await fetch(ANALYZE_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        text:  text,
+        url:   articleUrl,
+        title: '',
+        tier:  'free',
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`analyze-vnext ${response.status}: ${await response.text()}`);
@@ -308,6 +317,7 @@ async function logScanStatus(meta, status, reason = null) {
       analyzer_version:   SCAN_VERSION.analyzer,
       taxonomy_version:   SCAN_VERSION.taxonomy,
       prompt_version:     SCAN_VERSION.prompt,
+      content_hash:       hashContent(meta.url ?? meta.feed_url ?? Date.now().toString()),
       scanned_at:         new Date().toISOString(),
     });
     if (error) {
