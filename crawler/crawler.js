@@ -22,112 +22,200 @@ const MAX_CONTENT_LENGTH    = 8000;
 const REQUEST_DELAY_MS      = 1200;
 
 // ─── FEED LIST ───────────────────────────────────────────────────────────────
+// 30 sources across ZA, UK, US, EU, INT, Africa
 // media_class: broadsheet | tabloid | digital_native | state_media | fringe
 // topic_class: politics | general_news | business | opinion
 const FEEDS = [
+
   // ── South Africa ──────────────────────────────────────────────────────────
   {
-    feed_url:       'https://www.sabcnews.com/sabcnews/feed/',
-    publisher_name: 'SABC News',
-    publisher_domain: 'sabcnews.com',
+    feed_url: 'https://www.sabcnews.com/sabcnews/feed/',
+    publisher_name: 'SABC News', publisher_domain: 'sabcnews.com',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'general_news',
   },
   {
-    feed_url:       'https://www.groundup.org.za/feed/',
-    publisher_name: 'GroundUp',
-    publisher_domain: 'groundup.org.za',
+    feed_url: 'https://www.iol.co.za/rss/news',
+    publisher_name: 'IOL', publisher_domain: 'iol.co.za',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'digital_native', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://businesstech.co.za/news/feed/',
+    publisher_name: 'BusinessTech', publisher_domain: 'businesstech.co.za',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'digital_native', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.politicsweb.co.za/rss',
+    publisher_name: 'Politicsweb', publisher_domain: 'politicsweb.co.za',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'politics',
   },
+
+  // ── Africa (Continental) ──────────────────────────────────────────────────
   {
-    feed_url:       'https://www.iol.co.za/rss/news',
-    publisher_name: 'IOL',
-    publisher_domain: 'iol.co.za',
-    region: 'ZA', country: 'South Africa',
+    feed_url: 'https://africacheck.org/feed/',
+    publisher_name: 'Africa Check', publisher_domain: 'africacheck.org',
+    region: 'AF', country: 'Pan-Africa',
+    media_class: 'digital_native', topic_class: 'politics',
+  },
+  {
+    feed_url: 'https://thecontinent.org/feed/',
+    publisher_name: 'The Continent', publisher_domain: 'thecontinent.org',
+    region: 'AF', country: 'Pan-Africa',
     media_class: 'digital_native', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.premiumtimesng.com/feed/',
+    publisher_name: 'Premium Times Nigeria', publisher_domain: 'premiumtimesng.com',
+    region: 'AF', country: 'Nigeria',
+    media_class: 'digital_native', topic_class: 'politics',
   },
 
   // ── UK ────────────────────────────────────────────────────────────────────
   {
-    feed_url:       'https://feeds.theguardian.com/theguardian/politics/rss',
-    publisher_name: 'The Guardian',
-    publisher_domain: 'theguardian.com',
+    feed_url: 'https://feeds.theguardian.com/theguardian/politics/rss',
+    publisher_name: 'The Guardian', publisher_domain: 'theguardian.com',
     region: 'UK', country: 'United Kingdom',
     media_class: 'broadsheet', topic_class: 'politics',
   },
   {
-    feed_url:       'https://www.telegraph.co.uk/rss.xml',
-    publisher_name: 'The Telegraph',
-    publisher_domain: 'telegraph.co.uk',
+    feed_url: 'https://www.telegraph.co.uk/rss.xml',
+    publisher_name: 'The Telegraph', publisher_domain: 'telegraph.co.uk',
     region: 'UK', country: 'United Kingdom',
     media_class: 'broadsheet', topic_class: 'general_news',
   },
   {
-    feed_url:       'https://www.mirror.co.uk/news/politics/?service=rss',
-    publisher_name: 'Daily Mirror',
-    publisher_domain: 'mirror.co.uk',
+    feed_url: 'https://www.mirror.co.uk/news/politics/?service=rss',
+    publisher_name: 'Daily Mirror', publisher_domain: 'mirror.co.uk',
     region: 'UK', country: 'United Kingdom',
     media_class: 'tabloid', topic_class: 'politics',
   },
   {
-    feed_url:       'https://www.independent.co.uk/news/uk/politics/rss',
-    publisher_name: 'The Independent',
-    publisher_domain: 'independent.co.uk',
+    feed_url: 'https://www.independent.co.uk/news/uk/politics/rss',
+    publisher_name: 'The Independent', publisher_domain: 'independent.co.uk',
     region: 'UK', country: 'United Kingdom',
     media_class: 'tabloid', topic_class: 'politics',
   },
   {
-    feed_url:       'https://feeds.bbci.co.uk/news/politics/rss.xml',
-    publisher_name: 'BBC News',
-    publisher_domain: 'bbc.co.uk',
+    feed_url: 'https://feeds.bbci.co.uk/news/politics/rss.xml',
+    publisher_name: 'BBC News', publisher_domain: 'bbc.co.uk',
     region: 'UK', country: 'United Kingdom',
     media_class: 'broadsheet', topic_class: 'politics',
+  },
+  {
+    feed_url: 'https://www.spectator.co.uk/feed/',
+    publisher_name: 'The Spectator', publisher_domain: 'spectator.co.uk',
+    region: 'UK', country: 'United Kingdom',
+    media_class: 'digital_native', topic_class: 'opinion',
   },
 
   // ── US ────────────────────────────────────────────────────────────────────
   {
-    feed_url:       'https://feeds.foxnews.com/foxnews/politics',
-    publisher_name: 'Fox News',
-    publisher_domain: 'foxnews.com',
+    feed_url: 'https://feeds.foxnews.com/foxnews/politics',
+    publisher_name: 'Fox News', publisher_domain: 'foxnews.com',
     region: 'US', country: 'United States',
     media_class: 'digital_native', topic_class: 'politics',
   },
   {
-    feed_url:       'https://feeds.npr.org/1014/rss.xml',
-    publisher_name: 'NPR Politics',
-    publisher_domain: 'npr.org',
+    feed_url: 'https://feeds.npr.org/1014/rss.xml',
+    publisher_name: 'NPR Politics', publisher_domain: 'npr.org',
     region: 'US', country: 'United States',
-    media_class: 'digital_native', topic_class: 'general_news',
+    media_class: 'digital_native', topic_class: 'politics',
   },
   {
-    feed_url:       'https://www.breitbart.com/feed/',
-    publisher_name: 'Breitbart',
-    publisher_domain: 'breitbart.com',
+    feed_url: 'https://www.breitbart.com/feed/',
+    publisher_name: 'Breitbart', publisher_domain: 'breitbart.com',
     region: 'US', country: 'United States',
     media_class: 'fringe', topic_class: 'politics',
   },
   {
-    feed_url:       'https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml',
-    publisher_name: 'New York Times',
-    publisher_domain: 'nytimes.com',
+    feed_url: 'https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml',
+    publisher_name: 'New York Times', publisher_domain: 'nytimes.com',
     region: 'US', country: 'United States',
     media_class: 'broadsheet', topic_class: 'politics',
   },
-
-  // ── International ─────────────────────────────────────────────────────────
   {
-    feed_url:       'https://www.rt.com/rss/news/',
-    publisher_name: 'RT',
-    publisher_domain: 'rt.com',
+    feed_url: 'https://theintercept.com/feed/?rss',
+    publisher_name: 'The Intercept', publisher_domain: 'theintercept.com',
+    region: 'US', country: 'United States',
+    media_class: 'digital_native', topic_class: 'politics',
+  },
+  {
+    feed_url: 'https://reason.com/feed/',
+    publisher_name: 'Reason', publisher_domain: 'reason.com',
+    region: 'US', country: 'United States',
+    media_class: 'digital_native', topic_class: 'opinion',
+  },
+  {
+    feed_url: 'https://www.motherjones.com/feed/',
+    publisher_name: 'Mother Jones', publisher_domain: 'motherjones.com',
+    region: 'US', country: 'United States',
+    media_class: 'digital_native', topic_class: 'politics',
+  },
+
+  // ── Europe ────────────────────────────────────────────────────────────────
+  {
+    feed_url: 'https://www.dw.com/en/rss/rss.xml',
+    publisher_name: 'DW (Deutsche Welle)', publisher_domain: 'dw.com',
+    region: 'EU', country: 'Germany',
+    media_class: 'broadsheet', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.politico.eu/feed/',
+    publisher_name: 'Politico Europe', publisher_domain: 'politico.eu',
+    region: 'EU', country: 'Europe',
+    media_class: 'digital_native', topic_class: 'politics',
+  },
+  {
+    feed_url: 'https://www.euractiv.com/feed/',
+    publisher_name: 'Euractiv', publisher_domain: 'euractiv.com',
+    region: 'EU', country: 'Europe',
+    media_class: 'digital_native', topic_class: 'politics',
+  },
+
+  // ── International / State Media ───────────────────────────────────────────
+  {
+    feed_url: 'https://www.rt.com/rss/news/',
+    publisher_name: 'RT', publisher_domain: 'rt.com',
     region: 'INT', country: 'Russia',
     media_class: 'state_media', topic_class: 'general_news',
   },
   {
-    feed_url:       'https://www.aljazeera.com/xml/rss/all.xml',
-    publisher_name: 'Al Jazeera',
-    publisher_domain: 'aljazeera.com',
+    feed_url: 'https://www.aljazeera.com/xml/rss/all.xml',
+    publisher_name: 'Al Jazeera', publisher_domain: 'aljazeera.com',
     region: 'INT', country: 'Qatar',
+    media_class: 'broadsheet', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.globaltimes.cn/rss/outbrain.xml',
+    publisher_name: 'Global Times', publisher_domain: 'globaltimes.cn',
+    region: 'INT', country: 'China',
+    media_class: 'state_media', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://english.alarabiya.net/tools/rss',
+    publisher_name: 'Al Arabiya', publisher_domain: 'alarabiya.net',
+    region: 'INT', country: 'Saudi Arabia',
+    media_class: 'state_media', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.france24.com/en/rss',
+    publisher_name: 'France 24', publisher_domain: 'france24.com',
+    region: 'INT', country: 'France',
+    media_class: 'broadsheet', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://apnews.com/rss',
+    publisher_name: 'Associated Press', publisher_domain: 'apnews.com',
+    region: 'INT', country: 'United States',
+    media_class: 'broadsheet', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.reuters.com/rssFeed/worldNews',
+    publisher_name: 'Reuters', publisher_domain: 'reuters.com',
+    region: 'INT', country: 'United Kingdom',
     media_class: 'broadsheet', topic_class: 'general_news',
   },
 ];
@@ -229,6 +317,19 @@ async function scanContent(text, articleUrl) {
   return response.json();
 }
 
+// ── TACTIC VECTOR BUILDER ────────────────────────────────────────────────────
+// Encodes each article's persuasion signature as a weighted vector.
+// Severity weights: critical=3, warning=2, note=1
+// Stored now, clustered at month 6 when volume justifies it.
+function buildTacticVector(tactics) {
+  if (!Array.isArray(tactics) || tactics.length === 0) return null;
+  const severityWeight = { critical: 3, warning: 2, note: 1 };
+  return tactics.map(t => ({
+    code:   t.name ?? t.tactic_code ?? 'unknown',
+    weight: severityWeight[t.severity] ?? 1,
+  }));
+}
+
 async function storeScan(scan) {
   // ── 1. Insert parent scan row ──────────────────────────────────────────────
   const { data, error } = await supabase
@@ -277,6 +378,11 @@ async function storeScan(scan) {
       blind_spots:           scan.result.blind_spots ?? null,
       the_verdict:           scan.result.the_verdict ?? null,
       raw_output:            scan.result,
+
+      // Fingerprinting — tactic vector for clustering (month 6)
+      // Encodes persuasion signature as weighted array: [tactic_code, severity_weight]
+      // critical=3, warning=2, note=1
+      tactic_vector:         buildTacticVector(scan.result.tactics ?? []),
     })
     .select('id')
     .single();
