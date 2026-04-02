@@ -35,34 +35,34 @@ const FEEDS = [
     media_class: 'digital_native', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://www.iol.co.za/rss/news',
-    publisher_name: 'IOL', publisher_domain: 'iol.co.za',
+    feed_url: 'https://ewn.co.za/RSS',
+    publisher_name: 'EWN', publisher_domain: 'ewn.co.za',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://businesstech.co.za/news/feed/',
-    publisher_name: 'BusinessTech', publisher_domain: 'businesstech.co.za',
+    feed_url: 'https://www.moneyweb.co.za/feed/',
+    publisher_name: 'Moneyweb', publisher_domain: 'moneyweb.co.za',
     region: 'ZA', country: 'South Africa',
     media_class: 'digital_native', topic_class: 'business',
   },
   {
-    feed_url: 'https://www.politicsweb.co.za/rss',
-    publisher_name: 'Politicsweb', publisher_domain: 'politicsweb.co.za',
+    feed_url: 'https://feeds.feedburner.com/dailymaverick/opinionista',
+    publisher_name: 'Daily Maverick Opinion', publisher_domain: 'dailymaverick.co.za',
     region: 'ZA', country: 'South Africa',
-    media_class: 'digital_native', topic_class: 'politics',
+    media_class: 'digital_native', topic_class: 'opinion',
   },
 
   // ── Africa (Continental) ──────────────────────────────────────────────────
   {
-    feed_url: 'https://africacheck.org/feed/',
-    publisher_name: 'Africa Check', publisher_domain: 'africacheck.org',
+    feed_url: 'https://www.theafricareport.com/feed/',
+    publisher_name: 'The Africa Report', publisher_domain: 'theafricareport.com',
     region: 'AF', country: 'Pan-Africa',
-    media_class: 'digital_native', topic_class: 'politics',
+    media_class: 'digital_native', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://thecontinent.org/feed/',
-    publisher_name: 'The Continent', publisher_domain: 'thecontinent.org',
+    feed_url: 'https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf',
+    publisher_name: 'AllAfrica', publisher_domain: 'allafrica.com',
     region: 'AF', country: 'Pan-Africa',
     media_class: 'digital_native', topic_class: 'general_news',
   },
@@ -105,8 +105,8 @@ const FEEDS = [
     media_class: 'broadsheet', topic_class: 'politics',
   },
   {
-    feed_url: 'https://www.spectator.co.uk/feed/',
-    publisher_name: 'The Spectator', publisher_domain: 'spectator.co.uk',
+    feed_url: 'https://unherd.com/feed/',
+    publisher_name: 'UnHerd', publisher_domain: 'unherd.com',
     region: 'UK', country: 'United Kingdom',
     media_class: 'digital_native', topic_class: 'opinion',
   },
@@ -157,8 +157,8 @@ const FEEDS = [
 
   // ── Europe ────────────────────────────────────────────────────────────────
   {
-    feed_url: 'https://www.dw.com/en/rss/rss.xml',
-    publisher_name: 'DW (Deutsche Welle)', publisher_domain: 'dw.com',
+    feed_url: 'https://www.spiegel.de/international/index.rss',
+    publisher_name: 'Spiegel International', publisher_domain: 'spiegel.de',
     region: 'EU', country: 'Germany',
     media_class: 'broadsheet', topic_class: 'general_news',
   },
@@ -169,8 +169,8 @@ const FEEDS = [
     media_class: 'digital_native', topic_class: 'politics',
   },
   {
-    feed_url: 'https://www.euractiv.com/feed/',
-    publisher_name: 'Euractiv', publisher_domain: 'euractiv.com',
+    feed_url: 'https://euobserver.com/rss.xml',
+    publisher_name: 'EUobserver', publisher_domain: 'euobserver.com',
     region: 'EU', country: 'Europe',
     media_class: 'digital_native', topic_class: 'politics',
   },
@@ -195,10 +195,10 @@ const FEEDS = [
     media_class: 'state_media', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://english.alarabiya.net/tools/rss',
-    publisher_name: 'Al Arabiya', publisher_domain: 'alarabiya.net',
-    region: 'INT', country: 'Saudi Arabia',
-    media_class: 'state_media', topic_class: 'general_news',
+    feed_url: 'https://www.middleeasteye.net/rss',
+    publisher_name: 'Middle East Eye', publisher_domain: 'middleeasteye.net',
+    region: 'INT', country: 'United Kingdom',
+    media_class: 'digital_native', topic_class: 'general_news',
   },
   {
     feed_url: 'https://www.france24.com/en/rss',
@@ -207,15 +207,15 @@ const FEEDS = [
     media_class: 'broadsheet', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://apnews.com/rss',
-    publisher_name: 'Associated Press', publisher_domain: 'apnews.com',
+    feed_url: 'https://www.voanews.com/api/zktveepqi_',
+    publisher_name: 'Voice of America', publisher_domain: 'voanews.com',
     region: 'INT', country: 'United States',
-    media_class: 'broadsheet', topic_class: 'general_news',
+    media_class: 'state_media', topic_class: 'general_news',
   },
   {
-    feed_url: 'https://www.reuters.com/rssFeed/worldNews',
-    publisher_name: 'Reuters', publisher_domain: 'reuters.com',
-    region: 'INT', country: 'United Kingdom',
+    feed_url: 'https://www.scmp.com/rss/91/feed',
+    publisher_name: 'South China Morning Post', publisher_domain: 'scmp.com',
+    region: 'INT', country: 'Hong Kong',
     media_class: 'broadsheet', topic_class: 'general_news',
   },
 ];
@@ -288,7 +288,7 @@ async function isAlreadyScanned(contentHash) {
 
 async function scanContent(text, articleUrl) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout per scan
+  const timeout = setTimeout(() => controller.abort(), 35000); // 35s timeout per scan
 
   let response;
   try {
