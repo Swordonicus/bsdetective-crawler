@@ -16,15 +16,17 @@ const SUPABASE_SERVICE_KEY  = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY     = process.env.SUPABASE_ANON_KEY;
 const ANALYZE_URL           = `${SUPABASE_URL}/functions/v1/analyze-vnext`;
 
-const MAX_ARTICLES_PER_FEED = 3;      // 3 × 14 feeds = ~42 scans per run (~8 mins)
+const MAX_ARTICLES_PER_FEED = 3;
 const MIN_CONTENT_LENGTH    = 100;
 const MAX_CONTENT_LENGTH    = 5000;
 const REQUEST_DELAY_MS      = 1200;
 
 // ─── FEED LIST ───────────────────────────────────────────────────────────────
-// 30 sources across ZA, UK, US, EU, INT, Africa
-// media_class: broadsheet | tabloid | digital_native | state_media | fringe
-// topic_class: politics | general_news | business | opinion
+// media_class: broadsheet | tabloid | digital_native | state_media | fringe |
+//              advertorial | charity | government | health_commercial | recruitment
+// topic_class: politics | general_news | business | opinion |
+//              health_wellness | lifestyle | self_improvement |
+//              real_estate | higher_education | hr_recruitment
 const FEEDS = [
 
   // ── South Africa ──────────────────────────────────────────────────────────
@@ -218,12 +220,287 @@ const FEEDS = [
     region: 'INT', country: 'Hong Kong',
     media_class: 'broadsheet', topic_class: 'general_news',
   },
+
+  // ── Advertorial / PR-Disguised Business Media ─────────────────────────────
+  // High value: editorial cover used to push commercial agendas.
+  // Expect moderate-high SPI. Contrast against broadsheets for newsletter insight.
+  {
+    feed_url: 'https://www.entrepreneur.com/latest.rss',
+    publisher_name: 'Entrepreneur', publisher_domain: 'entrepreneur.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.inc.com/rss',
+    publisher_name: 'Inc.', publisher_domain: 'inc.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.fastcompany.com/latest/rss',
+    publisher_name: 'Fast Company', publisher_domain: 'fastcompany.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.forbes.com/real-time/feed2/',
+    publisher_name: 'Forbes', publisher_domain: 'forbes.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://feeds.businessinsider.com/custom/all',
+    publisher_name: 'Business Insider', publisher_domain: 'businessinsider.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+
+  // ── Lifestyle / Health Media (commercially oriented) ──────────────────────
+  // Supplement and pharma adjacency. High manipulation density expected.
+  // "This article in Men's Health scores higher than a supplement ad" — newsletter gold.
+  {
+    feed_url: 'https://www.menshealth.com/rss/all.xml/',
+    publisher_name: "Men's Health", publisher_domain: 'menshealth.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.womenshealthmag.com/rss/all.xml/',
+    publisher_name: "Women's Health", publisher_domain: 'womenshealthmag.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.prevention.com/rss/all.xml/',
+    publisher_name: 'Prevention', publisher_domain: 'prevention.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.healthline.com/rss/health-news',
+    publisher_name: 'Healthline', publisher_domain: 'healthline.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.mindbodygreen.com/rss.xml',
+    publisher_name: 'MindBodyGreen', publisher_domain: 'mindbodygreen.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://draxe.com/feed/',
+    publisher_name: 'Dr. Axe', publisher_domain: 'draxe.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://articles.mercola.com/sites/articles/rss.aspx',
+    publisher_name: 'Mercola', publisher_domain: 'mercola.com',
+    region: 'US', country: 'United States',
+    media_class: 'fringe', topic_class: 'health_wellness',
+  },
+
+  // ── Self-Improvement / Info Products ─────────────────────────────────────
+  // Course creators and coaching brands. Aspirational manipulation, fear of missing out,
+  // identity threat. High SPI expected. Direct contrast to news sources = strong newsletter angle.
+  {
+    feed_url: 'https://www.tonyrobbins.com/feed/',
+    publisher_name: 'Tony Robbins', publisher_domain: 'tonyrobbins.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'self_improvement',
+  },
+  {
+    feed_url: 'https://www.mindvalley.com/blog/feed',
+    publisher_name: 'Mindvalley', publisher_domain: 'mindvalley.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'self_improvement',
+  },
+  {
+    feed_url: 'https://www.iwillteachyoutoberich.com/feed/',
+    publisher_name: 'I Will Teach You To Be Rich', publisher_domain: 'iwillteachyoutoberich.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'self_improvement',
+  },
+  {
+    feed_url: 'https://foundr.com/feed',
+    publisher_name: 'Foundr', publisher_domain: 'foundr.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'self_improvement',
+  },
+
+  // ── Charities & NGOs ──────────────────────────────────────────────────────
+  // Most surprising category — trusted brands using high-emotion manipulation tactics.
+  // Guilt, urgency, social proof, identifiable victim effect.
+  // "Your favourite charity scores higher than a supplement ad" = standout newsletter edition.
+  {
+    feed_url: 'https://www.savethechildren.org/us/about-us/media-and-news/news-feed.rss',
+    publisher_name: 'Save the Children', publisher_domain: 'savethechildren.org',
+    region: 'US', country: 'United States',
+    media_class: 'charity', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.wwf.org.uk/rss.xml',
+    publisher_name: 'WWF UK', publisher_domain: 'wwf.org.uk',
+    region: 'UK', country: 'United Kingdom',
+    media_class: 'charity', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.greenpeace.org/international/feed/',
+    publisher_name: 'Greenpeace International', publisher_domain: 'greenpeace.org',
+    region: 'INT', country: 'International',
+    media_class: 'charity', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.oxfam.org/en/rss.xml',
+    publisher_name: 'Oxfam', publisher_domain: 'oxfam.org',
+    region: 'INT', country: 'United Kingdom',
+    media_class: 'charity', topic_class: 'general_news',
+  },
+  {
+    feed_url: 'https://www.amnesty.org/en/feed/',
+    publisher_name: 'Amnesty International', publisher_domain: 'amnesty.org',
+    region: 'INT', country: 'International',
+    media_class: 'charity', topic_class: 'general_news',
+  },
+
+  // ── Government & Public Health ────────────────────────────────────────────
+  // Behavioural nudge units use psychology tactics by design.
+  // Controversial findings — high media pickup potential.
+  // ZA government comms included for local relevance.
+  {
+    feed_url: 'https://www.who.int/feeds/entity/mediacentre/news/en/rss.xml',
+    publisher_name: 'World Health Organization', publisher_domain: 'who.int',
+    region: 'INT', country: 'International',
+    media_class: 'government', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.cdc.gov/media/rss/feeds/news.xml',
+    publisher_name: 'CDC', publisher_domain: 'cdc.gov',
+    region: 'US', country: 'United States',
+    media_class: 'government', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.nhs.uk/news/rss.aspx',
+    publisher_name: 'NHS', publisher_domain: 'nhs.uk',
+    region: 'UK', country: 'United Kingdom',
+    media_class: 'government', topic_class: 'health_wellness',
+  },
+  {
+    feed_url: 'https://www.gov.za/rss.xml',
+    publisher_name: 'South African Government', publisher_domain: 'gov.za',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'government', topic_class: 'politics',
+  },
+
+  // ── Higher Education ──────────────────────────────────────────────────────
+  // Universities selling $100K+ decisions using aspiration, scarcity, fear.
+  // Nobody indexes this. High surprise value. Global reach.
+  {
+    feed_url: 'https://news.harvard.edu/gazette/feed/',
+    publisher_name: 'Harvard Gazette', publisher_domain: 'harvard.edu',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'higher_education',
+  },
+  {
+    feed_url: 'https://www.wbs.ac.uk/news/feed/',
+    publisher_name: 'Warwick Business School', publisher_domain: 'wbs.ac.uk',
+    region: 'UK', country: 'United Kingdom',
+    media_class: 'advertorial', topic_class: 'higher_education',
+  },
+  {
+    feed_url: 'https://www.gsb.uct.ac.za/rss',
+    publisher_name: 'UCT Graduate School of Business', publisher_domain: 'gsb.uct.ac.za',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'advertorial', topic_class: 'higher_education',
+  },
+  {
+    feed_url: 'https://poetsandquants.com/feed/',
+    publisher_name: 'Poets & Quants', publisher_domain: 'poetsandquants.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'higher_education',
+  },
+
+  // ── Recruitment & Employer Branding ───────────────────────────────────────
+  // "We're a family" culture manipulation. Universally relatable pain.
+  // High SPI expected on job descriptions and employer brand content.
+  {
+    feed_url: 'https://www.linkedin.com/blog/feed',
+    publisher_name: 'LinkedIn Blog', publisher_domain: 'linkedin.com',
+    region: 'US', country: 'United States',
+    media_class: 'recruitment', topic_class: 'hr_recruitment',
+  },
+  {
+    feed_url: 'https://www.glassdoor.com/blog/feed/',
+    publisher_name: 'Glassdoor Blog', publisher_domain: 'glassdoor.com',
+    region: 'US', country: 'United States',
+    media_class: 'recruitment', topic_class: 'hr_recruitment',
+  },
+  {
+    feed_url: 'https://blog.indeed.com/feed/',
+    publisher_name: 'Indeed Blog', publisher_domain: 'indeed.com',
+    region: 'US', country: 'United States',
+    media_class: 'recruitment', topic_class: 'hr_recruitment',
+  },
+  {
+    feed_url: 'https://www.shrm.org/rss/pages/rss.aspx',
+    publisher_name: 'SHRM', publisher_domain: 'shrm.org',
+    region: 'US', country: 'United States',
+    media_class: 'recruitment', topic_class: 'hr_recruitment',
+  },
+
+  // ── Real Estate ───────────────────────────────────────────────────────────
+  // Property listing copy is a masterclass in anchoring, FOMO, and artificial scarcity.
+  // ZA sources included for local relevance to newsletter audience.
+  {
+    feed_url: 'https://www.privateproperty.co.za/rss/news',
+    publisher_name: 'Private Property ZA', publisher_domain: 'privateproperty.co.za',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'advertorial', topic_class: 'real_estate',
+  },
+  {
+    feed_url: 'https://www.property24.com/rss/articles',
+    publisher_name: 'Property24', publisher_domain: 'property24.com',
+    region: 'ZA', country: 'South Africa',
+    media_class: 'advertorial', topic_class: 'real_estate',
+  },
+  {
+    feed_url: 'https://www.realtor.com/news/feed/',
+    publisher_name: 'Realtor.com', publisher_domain: 'realtor.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'real_estate',
+  },
+  {
+    feed_url: 'https://www.zillow.com/blog/feed/',
+    publisher_name: 'Zillow Blog', publisher_domain: 'zillow.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'real_estate',
+  },
+
+  // ── Legal & Financial Services ────────────────────────────────────────────
+  // Personal injury, debt, and payday lending copy is high-manipulation by design.
+  // Fear-based, urgency-heavy. Strong contrast to broadsheet financial news.
+  {
+    feed_url: 'https://www.debt.com/blog/feed/',
+    publisher_name: 'Debt.com', publisher_domain: 'debt.com',
+    region: 'US', country: 'United States',
+    media_class: 'health_commercial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.nerdwallet.com/blog/feed/',
+    publisher_name: 'NerdWallet', publisher_domain: 'nerdwallet.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
+  {
+    feed_url: 'https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_headline',
+    publisher_name: 'Investopedia', publisher_domain: 'investopedia.com',
+    region: 'US', country: 'United States',
+    media_class: 'advertorial', topic_class: 'business',
+  },
 ];
 
 // ─── LANGUAGE DETECTION ──────────────────────────────────────────────────────
-// Lightweight heuristic — flags non-English for model quality tracking.
-// Haiku degrades on Afrikaans, Zulu, code-switched SA English.
-// These scans should be excluded from benchmarks until calibrated.
 function detectLanguage(text) {
   const sample = text.slice(0, 500).toLowerCase();
 
@@ -253,7 +530,6 @@ function hashContent(text) {
 }
 
 function extractContent(item) {
-  // Ordered by richness — track which source was used
   const sources = [
     { key: 'content:encoded', value: item['content:encoded'], type: 'full_content_encoded' },
     { key: 'content',         value: item.content,            type: 'content'              },
@@ -288,7 +564,7 @@ async function isAlreadyScanned(contentHash) {
 
 async function scanContent(text, articleUrl) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000); // 35s timeout per scan
+  const timeout = setTimeout(() => controller.abort(), 35000);
 
   let response;
   try {
@@ -317,10 +593,6 @@ async function scanContent(text, articleUrl) {
   return response.json();
 }
 
-// ── TACTIC VECTOR BUILDER ────────────────────────────────────────────────────
-// Encodes each article's persuasion signature as a weighted vector.
-// Severity weights: critical=3, warning=2, note=1
-// Stored now, clustered at month 6 when volume justifies it.
 function buildTacticVector(tactics) {
   if (!Array.isArray(tactics) || tactics.length === 0) return null;
   const severityWeight = { critical: 3, warning: 2, note: 1 };
@@ -331,16 +603,13 @@ function buildTacticVector(tactics) {
 }
 
 async function storeScan(scan) {
-  // ── 1. Insert parent scan row ──────────────────────────────────────────────
   const { data, error } = await supabase
     .from('crawler_scans')
     .insert({
-      // Version control
       analyzer_version:      SCAN_VERSION.analyzer,
       taxonomy_version:      SCAN_VERSION.taxonomy,
       prompt_version:        SCAN_VERSION.prompt,
 
-      // Publisher identity
       feed_url:              scan.feed.feed_url,
       publisher_name:        scan.feed.publisher_name,
       publisher_domain:      scan.feed.publisher_domain,
@@ -349,29 +618,24 @@ async function storeScan(scan) {
       media_class:           scan.feed.media_class,
       topic_class:           scan.feed.topic_class,
 
-      // Article identity
       article_url:           scan.article.url,
       article_domain:        scan.article.domain,
       headline_text:         scan.article.headline,
       published_at:          scan.article.publishedAt,
 
-      // Content quality signals
       content_hash:          scan.content.hash,
       content_length:        scan.content.length,
       truncated:             scan.content.truncated,
       content_extraction_type: scan.content.extractionType,
 
-      // Language — for model quality flagging
       language:              scan.language.lang,
       language_confidence:   scan.language.confidence,
       in_distribution:       scan.language.in_distribution,
 
-      // Scan provenance
       scan_source:           'crawler',
       scan_status:           'success',
       scanned_at:            new Date().toISOString(),
 
-      // BSDetective output
       spi_score:             scan.result.spi_score ?? null,
       the_play:              scan.result.the_play ?? null,
       emotional_targets:     scan.result.emotional_targets ?? null,
@@ -379,9 +643,6 @@ async function storeScan(scan) {
       the_verdict:           scan.result.the_verdict ?? null,
       raw_output:            scan.result,
 
-      // Fingerprinting — tactic vector for clustering (month 6)
-      // Encodes persuasion signature as weighted array: [tactic_code, severity_weight]
-      // critical=3, warning=2, note=1
       tactic_vector:         buildTacticVector(scan.result.tactics ?? []),
     })
     .select('id')
@@ -389,7 +650,6 @@ async function storeScan(scan) {
 
   if (error) throw error;
 
-  // ── 2. Insert flattened tactic rows ───────────────────────────────────────
   const tactics = scan.result.tactics;
   if (data?.id && Array.isArray(tactics) && tactics.length > 0) {
     const tacticRows = tactics.map(t => ({
@@ -436,7 +696,7 @@ async function logScanStatus(meta, status, reason = null) {
 
 // ─── FEED PROCESSOR ──────────────────────────────────────────────────────────
 async function processFeed(feedConfig) {
-  console.log(`\n📡 ${feedConfig.publisher_name} (${feedConfig.region})`);
+  console.log(`\n📡 ${feedConfig.publisher_name} (${feedConfig.region}) [${feedConfig.media_class}]`);
   let feed;
 
   try {
@@ -458,7 +718,6 @@ async function processFeed(feedConfig) {
       title: item.title || '',
     };
 
-    // ── Skip: content too short ──────────────────────────────────────────────
     if (rawText.length < MIN_CONTENT_LENGTH) {
       console.log(`  ⏭️  Too short (${rawText.length} chars): ${item.title?.slice(0, 50)}`);
       await logScanStatus(articleMeta, 'skipped', 'short_content');
@@ -468,7 +727,6 @@ async function processFeed(feedConfig) {
 
     const contentHash = hashContent(rawText);
 
-    // ── Skip: already scanned ────────────────────────────────────────────────
     if (await isAlreadyScanned(contentHash)) {
       console.log(`  ↩️  Duplicate: ${item.title?.slice(0, 50)}`);
       skipped++;
@@ -478,7 +736,6 @@ async function processFeed(feedConfig) {
     const { text: finalText, truncated } = truncateContent(rawText, MAX_CONTENT_LENGTH);
     const langResult = detectLanguage(finalText);
 
-    // ── Warn on out-of-distribution language ─────────────────────────────────
     if (!langResult.in_distribution) {
       console.log(`  🌐 Non-English detected (${langResult.lang}) — scan will be flagged`);
     }
@@ -544,6 +801,7 @@ async function main() {
 
   console.log('\n─────────────────────────────────────');
   console.log('📊 Run Summary');
+  console.log(`  Feeds      : ${FEEDS.length}`);
   console.log(`  Attempted  : ${totals.attempted}`);
   console.log(`  Scanned    : ${totals.scanned}`);
   console.log(`  Skipped    : ${totals.skipped}`);
