@@ -2,11 +2,12 @@ name: BSDetective Daily Crawler
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # 06:00 UTC = 08:00 SAST daily
-  workflow_dispatch:       # manual trigger from GitHub Actions UI
+    - cron: '0 6 * * *'    # 06:00 UTC = 08:00 SAST daily
+  workflow_dispatch:         # manual trigger from GitHub Actions UI
 
 jobs:
   crawl:
+    name: RSS Feed Crawler
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -32,3 +33,37 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node crawler.js
+
+  facebook-ads:
+    name: Facebook Ad Library Scraper
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Runs every 3 days (Mon, Thu, Sun) to respect rate limits
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && (github.run_number % 3 == 0)) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: crawler/package.json
+
+      - name: Install dependencies
+        working-directory: ./crawler
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: ./crawler
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Facebook Ad Library scraper
+        working-directory: ./crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node facebook-ads-scraper.js
