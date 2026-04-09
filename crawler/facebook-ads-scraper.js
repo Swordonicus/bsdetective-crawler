@@ -206,11 +206,11 @@ async function scrapeAds(page, query) {
           const textElements = card.querySelectorAll('div[class*="xdj266r"], div[class*="_4bl9"], span[class*="x193iq5w"], p');
             const texts = Array.from(textElements)
             .map(el => el.innerText?.trim())
-            .filter(t => t && t.length > 20)
+            .filter(t => t && t.length > 20 && !t.includes('Sponsored') && !/^\d+:\d+/.test(t))
             .join(' ');
 
           // Extract advertiser name
-          const advertiserEl = card.querySelector('a[class*="x1i10hfl"], strong, h4, div[class*="x1heor9g"]');
+          const advertiserEl = card.querySelector('a[aria-label], h2, h3, strong, a[class*="x1i10hfl"], div[class*="x1heor9g"]');
           const advertiserName = advertiserEl?.innerText?.trim() || 'Unknown Advertiser';
 
           // Extract start date
