@@ -204,8 +204,7 @@ async function scrapeAds(page, query) {
         return cards.slice(0, 5).map(card => {
           // Extract text content — ad body copy
           const textElements = card.querySelectorAll('div[class*="xdj266r"], div[class*="_4bl9"], span[class*="x193iq5w"], p');
-          const
-            st texts = Array.from(textElements)
+            const texts = Array.from(textElements)
             .map(el => el.innerText?.trim())
             .filter(t => t && t.length > 20)
             .join(' ');
