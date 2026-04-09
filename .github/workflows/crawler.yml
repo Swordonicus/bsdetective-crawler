@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     # Runs every 3 days (Mon, Thu, Sun) to respect rate limits
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && (github.run_number % 3 == 0)) }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout
