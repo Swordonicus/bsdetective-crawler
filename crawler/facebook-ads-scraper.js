@@ -121,7 +121,7 @@ async function storeScan(ad, result) {
       article_url:       ad.adUrl,
       article_domain:    'facebook.com',
       headline_text:     ad.adText.slice(0, 200),
-      published_at:      ad.startDate ?? null,
+      published_at:      null,
 
       // Content
       content_hash:      ad.contentHash,
@@ -204,7 +204,8 @@ async function scrapeAds(page, query) {
         return cards.slice(0, 5).map(card => {
           // Extract text content — ad body copy
           const textElements = card.querySelectorAll('div[class*="xdj266r"], div[class*="_4bl9"], span[class*="x193iq5w"], p');
-          const texts = Array.from(textElements)
+          con
+            st texts = Array.from(textElements)
             .map(el => el.innerText?.trim())
             .filter(t => t && t.length > 20)
             .join(' ');
@@ -222,7 +223,7 @@ async function scrapeAds(page, query) {
       });
 
       for (const card of adCards) {
-        if (card.texts && card.texts.length >= MIN_CONTENT_LENGTH) {
+       if (card.texts && card.texts.length >= MIN_CONTENT_LENGTH && !card.texts.includes('AllAfghanistan')) {
           ads.push({
             adText:        card.texts,
             advertiserName: card.advertiserName,
