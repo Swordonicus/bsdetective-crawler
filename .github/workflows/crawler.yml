@@ -38,8 +38,6 @@ jobs:
     name: Facebook Ad Library Scraper
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Runs every 3 days (Mon, Thu, Sun) to respect rate limits
-    if: ${{ github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout
