@@ -791,13 +791,18 @@ async function main() {
 
   const totals = { attempted: 0, scanned: 0, skipped: 0, errors: 0 };
 
-  for (const feed of FEEDS) {
-    const result = await processFeed(feed);
-    totals.attempted += result.attempted;
-    totals.scanned   += result.scanned;
-    totals.skipped   += result.skipped;
-    totals.errors    += result.errors;
-  }
+  // Process feeds in parallel batches of 5
+const BATCH_SIZE = 5;
+for (let i = 0; i < FEEDS.length; i += BATCH_SIZE) {
+  const batch = FEEDS.slice(i, i + BATCH_SIZE);
+  const results = await Promise.all(batch.map(processFeed));
+  results.forEach(r => {
+    totals.attempted += r.attempted;
+    totals.scanned   += r.scanned;
+    totals.skipped   += r.skipped;
+    totals.errors    += r.errors;
+  });
+}
 
   console.log('\n─────────────────────────────────────');
   console.log('📊 Run Summary');
