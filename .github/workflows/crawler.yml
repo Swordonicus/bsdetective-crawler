@@ -3,65 +3,87 @@ name: BSDetective Daily Crawler
 on:
   schedule:
     - cron: '0 6 * * *'    # 06:00 UTC = 08:00 SAST daily
-  workflow_dispatch:         # manual trigger from GitHub Actions UI
+  workflow_dispatch:         # manual trigger
 
 jobs:
-  crawl:
+
+  # ── Stage 1A: RSS Feed Crawler ──────────────────────────────────────────────
+  # Fetches all RSS feeds, writes raw articles to crawler_queue.
+  # No AI calls. Target: under 10 minutes.
+  crawl-rss:
     name: RSS Feed Crawler
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: crawler/package.json
-
       - name: Install dependencies
         working-directory: ./crawler
         run: npm install
-
-      - name: Run crawler
+      - name: Run RSS crawler
         working-directory: ./crawler
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node crawler.js
 
-  facebook-ads:
+  # ── Stage 1B: Facebook Ad Library Scraper ───────────────────────────────────
+  # Scrapes Facebook Ad Library, writes ad copy to crawler_queue.
+  # No AI calls. Runs in parallel with RSS crawler. Target: under 10 minutes.
+  crawl-facebook:
     name: Facebook Ad Library Scraper
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: crawler/package.json
-
       - name: Install dependencies
         working-directory: ./crawler
         run: npm install
-
       - name: Install Playwright browsers
         working-directory: ./crawler
         run: npx playwright install chromium --with-deps
-
-      - name: Run Facebook Ad Library scraper
+      - name: Run Facebook scraper
         working-directory: ./crawler
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node facebook-ads-scraper.js
+
+  # ── Stage 2: Analyzer ────────────────────────────────────────────────────────
+  # Waits for both crawlers to complete, then processes crawler_queue via
+  # analyze-vnext. Handles up to 80 items per run (~47 min worst case).
+  # If queue depth exceeds 80, remaining items are processed on the next
+  # scheduled run — no data is lost.
+  analyze:
+    name: Queue Analyzer
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    needs: [crawl-rss, crawl-facebook]
+    # Run analyze even if one crawler fails — partial queue is still worth processing
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: crawler/package.json
+      - name: Install dependencies
+        working-directory: ./crawler
+        run: npm install
+      - name: Run analyzer
+        working-directory: ./crawler
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_ANON_KEY:    ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node analyzer.js
