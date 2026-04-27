@@ -35,7 +35,6 @@ const FEEDS = [
   // ── UK ────────────────────────────────────────────────────────────────────
   { feed_url: 'https://feeds.theguardian.com/theguardian/politics/rss', publisher_name: 'The Guardian', publisher_domain: 'theguardian.com', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'politics' },
   { feed_url: 'https://www.telegraph.co.uk/rss.xml', publisher_name: 'The Telegraph', publisher_domain: 'telegraph.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.mirror.co.uk/news/politics/?service=rss', publisher_name: 'Daily Mirror', publisher_domain: 'mirror.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'tabloid', topic_class: 'politics' },
   { feed_url: 'https://www.independent.co.uk/news/uk/politics/rss', publisher_name: 'The Independent', publisher_domain: 'independent.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'tabloid', topic_class: 'politics' },
   { feed_url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', publisher_name: 'BBC News', publisher_domain: 'bbc.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'politics' },
   { feed_url: 'https://unherd.com/feed/', publisher_name: 'UnHerd', publisher_domain: 'unherd.com', region: 'UK', country: 'United Kingdom', media_class: 'digital_native', topic_class: 'opinion' },
@@ -52,15 +51,12 @@ const FEEDS = [
   // ── Europe ────────────────────────────────────────────────────────────────
   { feed_url: 'https://www.spiegel.de/international/index.rss', publisher_name: 'Spiegel International', publisher_domain: 'spiegel.de', region: 'EU', country: 'Germany', media_class: 'broadsheet', topic_class: 'general_news' },
   { feed_url: 'https://www.politico.eu/feed/', publisher_name: 'Politico Europe', publisher_domain: 'politico.eu', region: 'EU', country: 'Europe', media_class: 'digital_native', topic_class: 'politics' },
-  { feed_url: 'https://euobserver.com/rss.xml', publisher_name: 'EUobserver', publisher_domain: 'euobserver.com', region: 'EU', country: 'Europe', media_class: 'digital_native', topic_class: 'politics' },
 
   // ── International / State Media ───────────────────────────────────────────
   { feed_url: 'https://www.rt.com/rss/news/', publisher_name: 'RT', publisher_domain: 'rt.com', region: 'INT', country: 'Russia', media_class: 'state_media', topic_class: 'general_news' },
   { feed_url: 'https://www.aljazeera.com/xml/rss/all.xml', publisher_name: 'Al Jazeera', publisher_domain: 'aljazeera.com', region: 'INT', country: 'Qatar', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.globaltimes.cn/rss/outbrain.xml', publisher_name: 'Global Times', publisher_domain: 'globaltimes.cn', region: 'INT', country: 'China', media_class: 'state_media', topic_class: 'general_news' },
   { feed_url: 'https://www.middleeasteye.net/rss', publisher_name: 'Middle East Eye', publisher_domain: 'middleeasteye.net', region: 'INT', country: 'United Kingdom', media_class: 'digital_native', topic_class: 'general_news' },
   { feed_url: 'https://www.france24.com/en/rss', publisher_name: 'France 24', publisher_domain: 'france24.com', region: 'INT', country: 'France', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.voanews.com/api/zktveepqi_', publisher_name: 'Voice of America', publisher_domain: 'voanews.com', region: 'INT', country: 'United States', media_class: 'state_media', topic_class: 'general_news' },
   { feed_url: 'https://www.scmp.com/rss/91/feed', publisher_name: 'South China Morning Post', publisher_domain: 'scmp.com', region: 'INT', country: 'Hong Kong', media_class: 'broadsheet', topic_class: 'general_news' },
 
   // ── Advertorial / Business Media ──────────────────────────────────────────
@@ -76,8 +72,6 @@ const FEEDS = [
   { feed_url: 'https://www.prevention.com/rss/all.xml/', publisher_name: 'Prevention', publisher_domain: 'prevention.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'health_wellness' },
   { feed_url: 'https://www.healthline.com/rss/health-news', publisher_name: 'Healthline', publisher_domain: 'healthline.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'health_wellness' },
   { feed_url: 'https://www.mindbodygreen.com/rss.xml', publisher_name: 'MindBodyGreen', publisher_domain: 'mindbodygreen.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'health_wellness' },
-  { feed_url: 'https://draxe.com/feed/', publisher_name: 'Dr. Axe', publisher_domain: 'draxe.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'health_wellness' },
-  { feed_url: 'https://articles.mercola.com/sites/articles/rss.aspx', publisher_name: 'Mercola', publisher_domain: 'mercola.com', region: 'US', country: 'United States', media_class: 'fringe', topic_class: 'health_wellness' },
 
   // ── Self-Improvement ──────────────────────────────────────────────────────
   { feed_url: 'https://www.tonyrobbins.com/feed/', publisher_name: 'Tony Robbins', publisher_domain: 'tonyrobbins.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'self_improvement' },
@@ -86,7 +80,6 @@ const FEEDS = [
   { feed_url: 'https://foundr.com/feed', publisher_name: 'Foundr', publisher_domain: 'foundr.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'self_improvement' },
 
   // ── Charities & NGOs ──────────────────────────────────────────────────────
-  { feed_url: 'https://www.savethechildren.org/us/about-us/media-and-news/news-feed.rss', publisher_name: 'Save the Children', publisher_domain: 'savethechildren.org', region: 'US', country: 'United States', media_class: 'charity', topic_class: 'general_news' },
   { feed_url: 'https://www.wwf.org.uk/rss.xml', publisher_name: 'WWF UK', publisher_domain: 'wwf.org.uk', region: 'UK', country: 'United Kingdom', media_class: 'charity', topic_class: 'general_news' },
   { feed_url: 'https://www.greenpeace.org/international/feed/', publisher_name: 'Greenpeace International', publisher_domain: 'greenpeace.org', region: 'INT', country: 'International', media_class: 'charity', topic_class: 'general_news' },
   { feed_url: 'https://www.oxfam.org/en/rss.xml', publisher_name: 'Oxfam', publisher_domain: 'oxfam.org', region: 'INT', country: 'United Kingdom', media_class: 'charity', topic_class: 'general_news' },
@@ -94,32 +87,24 @@ const FEEDS = [
 
   // ── Government & Public Health ────────────────────────────────────────────
   { feed_url: 'https://www.who.int/feeds/entity/mediacentre/news/en/rss.xml', publisher_name: 'World Health Organization', publisher_domain: 'who.int', region: 'INT', country: 'International', media_class: 'government', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.cdc.gov/media/rss/feeds/news.xml', publisher_name: 'CDC', publisher_domain: 'cdc.gov', region: 'US', country: 'United States', media_class: 'government', topic_class: 'health_wellness' },
   { feed_url: 'https://www.nhs.uk/news/rss.aspx', publisher_name: 'NHS', publisher_domain: 'nhs.uk', region: 'UK', country: 'United Kingdom', media_class: 'government', topic_class: 'health_wellness' },
   { feed_url: 'https://www.gov.za/rss.xml', publisher_name: 'South African Government', publisher_domain: 'gov.za', region: 'ZA', country: 'South Africa', media_class: 'government', topic_class: 'politics' },
 
   // ── Higher Education ──────────────────────────────────────────────────────
   { feed_url: 'https://news.harvard.edu/gazette/feed/', publisher_name: 'Harvard Gazette', publisher_domain: 'harvard.edu', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'higher_education' },
   { feed_url: 'https://www.wbs.ac.uk/news/feed/', publisher_name: 'Warwick Business School', publisher_domain: 'wbs.ac.uk', region: 'UK', country: 'United Kingdom', media_class: 'advertorial', topic_class: 'higher_education' },
-  { feed_url: 'https://www.gsb.uct.ac.za/rss', publisher_name: 'UCT Graduate School of Business', publisher_domain: 'gsb.uct.ac.za', region: 'ZA', country: 'South Africa', media_class: 'advertorial', topic_class: 'higher_education' },
   { feed_url: 'https://poetsandquants.com/feed/', publisher_name: 'Poets & Quants', publisher_domain: 'poetsandquants.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'higher_education' },
 
   // ── Recruitment ───────────────────────────────────────────────────────────
-  { feed_url: 'https://www.linkedin.com/blog/feed', publisher_name: 'LinkedIn Blog', publisher_domain: 'linkedin.com', region: 'US', country: 'United States', media_class: 'recruitment', topic_class: 'hr_recruitment' },
   { feed_url: 'https://www.glassdoor.com/blog/feed/', publisher_name: 'Glassdoor Blog', publisher_domain: 'glassdoor.com', region: 'US', country: 'United States', media_class: 'recruitment', topic_class: 'hr_recruitment' },
-  { feed_url: 'https://blog.indeed.com/feed/', publisher_name: 'Indeed Blog', publisher_domain: 'indeed.com', region: 'US', country: 'United States', media_class: 'recruitment', topic_class: 'hr_recruitment' },
-  { feed_url: 'https://www.shrm.org/rss/pages/rss.aspx', publisher_name: 'SHRM', publisher_domain: 'shrm.org', region: 'US', country: 'United States', media_class: 'recruitment', topic_class: 'hr_recruitment' },
 
   // ── Real Estate ───────────────────────────────────────────────────────────
   { feed_url: 'https://www.privateproperty.co.za/rss/news', publisher_name: 'Private Property ZA', publisher_domain: 'privateproperty.co.za', region: 'ZA', country: 'South Africa', media_class: 'advertorial', topic_class: 'real_estate' },
   { feed_url: 'https://www.property24.com/rss/articles', publisher_name: 'Property24', publisher_domain: 'property24.com', region: 'ZA', country: 'South Africa', media_class: 'advertorial', topic_class: 'real_estate' },
-  { feed_url: 'https://www.realtor.com/news/feed/', publisher_name: 'Realtor.com', publisher_domain: 'realtor.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'real_estate' },
   { feed_url: 'https://www.zillow.com/blog/feed/', publisher_name: 'Zillow Blog', publisher_domain: 'zillow.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'real_estate' },
 
   // ── Financial Services ────────────────────────────────────────────────────
   { feed_url: 'https://www.debt.com/blog/feed/', publisher_name: 'Debt.com', publisher_domain: 'debt.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'business' },
-  { feed_url: 'https://www.nerdwallet.com/blog/feed/', publisher_name: 'NerdWallet', publisher_domain: 'nerdwallet.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-  { feed_url: 'https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_headline', publisher_name: 'Investopedia', publisher_domain: 'investopedia.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
 ];
 
 // ─── LANGUAGE DETECTION ──────────────────────────────────────────────────────
