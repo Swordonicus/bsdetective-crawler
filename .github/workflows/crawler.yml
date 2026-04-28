@@ -7,33 +7,62 @@ on:
 
 jobs:
 
-  # ── Stage 1A: RSS Feed Crawler ──────────────────────────────────────────────
-  # Fetches all RSS feeds, writes raw articles to crawler_queue.
-  # No AI calls. Target: under 10 minutes.
-  crawl-rss:
-    name: RSS Feed Crawler
+  # ── Stage 1A: RSS Feed Crawler — Batch A (feeds 0–27) ───────────────────────
+  # ZA, Africa, UK, US politics/opinion, Europe, State Media, Business Insider
+  # No AI calls. Target: under 15 minutes.
+  crawl-rss-a:
+    name: RSS Feed Crawler (A)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: crawler/package.json
       - name: Install dependencies
         working-directory: ./crawler
         run: npm install
-      - name: Run RSS crawler
+      - name: Run RSS crawler (feeds 0–27)
         working-directory: ./crawler
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FEED_START: '0'
+          FEED_END:   '27'
         run: node crawler.js
 
-  # ── Stage 1B: Facebook Ad Library Scraper ───────────────────────────────────
+  # ── Stage 1B: RSS Feed Crawler — Batch B (feeds 28–end) ─────────────────────
+  # Health, Self-Improvement, Charities, Government, Education, Recruitment,
+  # Real Estate, Financial Services
+  # No AI calls. Runs in parallel with Batch A. Target: under 15 minutes.
+  crawl-rss-b:
+    name: RSS Feed Crawler (B)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: crawler/package.json
+      - name: Install dependencies
+        working-directory: ./crawler
+        run: npm install
+      - name: Run RSS crawler (feeds 28–end)
+        working-directory: ./crawler
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FEED_START: '28'
+          FEED_END:   '999'
+        run: node crawler.js
+
+  # ── Stage 1C: Facebook Ad Library Scraper ───────────────────────────────────
   # Scrapes Facebook Ad Library, writes ad copy to crawler_queue.
-  # No AI calls. Runs in parallel with RSS crawler. Target: under 10 minutes.
+  # No AI calls. Runs in parallel with RSS crawlers. Target: under 10 minutes.
   crawl-facebook:
     name: Facebook Ad Library Scraper
     runs-on: ubuntu-latest
@@ -42,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: crawler/package.json
       - name: Install dependencies
@@ -59,22 +88,21 @@ jobs:
         run: node facebook-ads-scraper.js
 
   # ── Stage 2: Analyzer ────────────────────────────────────────────────────────
-  # Waits for both crawlers to complete, then processes crawler_queue via
-  # analyze-vnext. Handles up to 80 items per run (~47 min worst case).
-  # If queue depth exceeds 80, remaining items are processed on the next
-  # scheduled run — no data is lost.
+  # Waits for all three crawlers to complete, then processes crawler_queue.
+  # Handles up to 80 items per run. If queue depth exceeds 80, remaining items
+  # process on the next scheduled run — no data is lost.
+  # Runs even if one or more crawlers fail — partial queue is worth processing.
   analyze:
     name: Queue Analyzer
     runs-on: ubuntu-latest
     timeout-minutes: 55
-    needs: [crawl-rss, crawl-facebook]
-    # Run analyze even if one crawler fails — partial queue is still worth processing
+    needs: [crawl-rss-a, crawl-rss-b, crawl-facebook]
     if: always()
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: crawler/package.json
       - name: Install dependencies
