@@ -155,7 +155,6 @@ function truncateContent(text, maxLen) {
 }
 
 async function isAlreadyQueued(contentHash) {
-  // Check both queue and existing scans to avoid re-queueing already-processed content
   const [queueCheck, scanCheck] = await Promise.all([
     supabase.from('crawler_queue').select('id').eq('content_hash', contentHash).maybeSingle(),
     supabase.from('crawler_scans').select('id').eq('content_hash', contentHash).maybeSingle(),
@@ -165,7 +164,7 @@ async function isAlreadyQueued(contentHash) {
 
 async function addToQueue(item) {
   const { error } = await supabase.from('crawler_queue').insert(item);
-  if (error && error.code !== '23505') { // ignore unique constraint violations (race condition safe)
+  if (error && error.code !== '23505') {
     throw error;
   }
 }
@@ -176,7 +175,6 @@ async function processFeed(feedConfig) {
 
   let feed;
   try {
-    // Per-feed timeout wrapper — prevents one slow feed hanging the batch
     const feedPromise = parser.parseURL(feedConfig.feed_url);
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Feed timeout')), FEED_TIMEOUT_MS + 2000)
@@ -250,22 +248,30 @@ async function processFeed(feedConfig) {
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('🕵️  BSDetective RSS Crawler (queue mode)');
-  console.log(`📅 ${new Date().toISOString()}`);
-  console.log(`📰 Feeds: ${FEEDS.length} | Max per feed: ${MAX_ARTICLES_PER_FEED}`);
-
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     console.error('❌ Missing env vars: SUPABASE_URL or SUPABASE_SERVICE_KEY');
     process.exit(1);
   }
 
+  // ── Batch slicing: FEED_START / FEED_END env vars let the YML split feeds
+  // across two parallel jobs without duplicating this file.
+  // Job A: FEED_START=0  FEED_END=27  (feeds 0–27,  28 feeds)
+  // Job B: FEED_START=28 FEED_END=999 (feeds 28–end, 27 feeds)
+  // If neither var is set, the full list runs (backwards-compatible).
+  const feedStart = parseInt(process.env.FEED_START ?? '0',   10);
+  const feedEnd   = parseInt(process.env.FEED_END   ?? '999', 10);
+  const activeFeed = FEEDS.slice(feedStart, feedEnd + 1);
+
+  console.log('🕵️  BSDetective RSS Crawler (queue mode)');
+  console.log(`📅 ${new Date().toISOString()}`);
+  console.log(`📰 Feeds: ${activeFeed.length} of ${FEEDS.length} (indices ${feedStart}–${Math.min(feedEnd, FEEDS.length - 1)}) | Max per feed: ${MAX_ARTICLES_PER_FEED}`);
+
   const totals = { queued: 0, skipped: 0, errors: 0 };
 
-  // Process feeds in parallel batches of 10 — safe now because there are no AI calls
   const BATCH_SIZE = 10;
-  for (let i = 0; i < FEEDS.length; i += BATCH_SIZE) {
-    const batch = FEEDS.slice(i, i + BATCH_SIZE);
-    console.log(`\n── Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(FEEDS.length / BATCH_SIZE)} ──`);
+  for (let i = 0; i < activeFeed.length; i += BATCH_SIZE) {
+    const batch = activeFeed.slice(i, i + BATCH_SIZE);
+    console.log(`\n── Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(activeFeed.length / BATCH_SIZE)} ──`);
     const results = await Promise.all(batch.map(processFeed));
     results.forEach(r => {
       totals.queued  += r.queued;
@@ -276,7 +282,7 @@ async function main() {
 
   console.log('\n─────────────────────────────────────');
   console.log('📊 Crawl Summary (no AI calls — fast by design)');
-  console.log(`  Feeds      : ${FEEDS.length}`);
+  console.log(`  Feeds      : ${activeFeed.length}`);
   console.log(`  Queued     : ${totals.queued}`);
   console.log(`  Skipped    : ${totals.skipped}`);
   console.log(`  Errors     : ${totals.errors}`);
