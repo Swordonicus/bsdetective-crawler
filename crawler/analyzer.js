@@ -49,6 +49,45 @@ function buildTacticVector(tactics) {
   }));
 }
 
+// ─── MBFC ENRICHMENT CACHE ─────────────────────────────────────────────────
+// Pre-loads all domain_enrichment rows into memory (~4,500 rows).
+// Paginated to avoid Supabase's default 1000-row limit.
+
+const mbfcCache = new Map();
+
+async function loadMbfcCache() {
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  let total = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('domain_enrichment')
+      .select('domain, mbfc_bias, mbfc_factuality, mbfc_credibility')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.warn('⚠️  Failed to load MBFC cache:', error.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+
+    for (const row of data) {
+      mbfcCache.set(row.domain, {
+        mbfc_bias:        row.mbfc_bias,
+        mbfc_factuality:  row.mbfc_factuality,
+        mbfc_credibility: row.mbfc_credibility,
+      });
+    }
+
+    total += data.length;
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return total;
+}
+
 async function markQueueItem(id, status, errorMessage = null) {
   await supabase
     .from('crawler_queue')
@@ -110,6 +149,14 @@ async function storeScan(item, result) {
         analysis_scope:         'copy_only',
       }),
 
+      // GDELT provenance
+      gdelt_source:             item.source_type === 'gdelt_article',
+      gdelt_tone:               null,  // GDELT artlist mode doesn't provide per-article tone
+
+      // MBFC enrichment (from domain_enrichment cache)
+      // Strip www. prefix to match domain_enrichment keys
+      ...(mbfcCache.get(item.article_domain?.replace(/^www\./i, '')) || {}),
+
       // BSDetective output
       spi_score:                result.spi_score ?? null,
       the_play:                 result.the_play ?? null,
@@ -153,6 +200,10 @@ async function main() {
     process.exit(1);
   }
 
+  // Load MBFC credibility cache
+  const mbfcCount = await loadMbfcCache();
+  console.log(`🏷️  MBFC cache: ${mbfcCount} domains loaded`);
+
   // Fetch pending items from queue (oldest first)
   const { data: items, error } = await supabase
     .from('crawler_queue')
@@ -184,7 +235,9 @@ async function main() {
       const result = await scanContent(item.body_text, item.article_url);
       await storeScan(item, result);
       await markQueueItem(item.id, 'done');
-      console.log(`  ✅ SPI ${result.spi_score ?? '?'} | ${item.language} | done`);
+      const mbfc = mbfcCache.get(item.article_domain?.replace(/^www\./i, ''));
+      const mbfcTag = mbfc ? `${mbfc.mbfc_credibility}` : 'no-mbfc';
+      console.log(`  ✅ SPI ${result.spi_score ?? '?'} | ${item.language} | ${mbfcTag} | done`);
       totals.scanned++;
     } catch (err) {
       console.error(`  ❌ Failed: ${err.message}`);
