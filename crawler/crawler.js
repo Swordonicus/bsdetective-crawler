@@ -1,296 +1,481 @@
-import Parser from 'rss-parser';
-import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+/**
+ * crawler.js — BSDetective Autonomous Crawler
+ * ─────────────────────────────────────────────────────────────────
+ * Runs daily via GitHub Actions.
+ * Sources: RSS feeds + GDELT 2.0 Doc API (free, no auth required)
+ * Enrichment: MBFC credibility lookup per domain
+ * Output: crawler_scans + crawler_scan_tactics tables in Supabase
+ * ─────────────────────────────────────────────────────────────────
+ */
 
-// ─── VERSION CONTROL ────────────────────────────────────────────────────────
-const SCAN_VERSION = {
-  analyzer:  'vnext_haiku_2026_03',
-  taxonomy:  'v1.0',
-  prompt:    'crawler_v1.0',
-};
+const { createClient } = require('@supabase/supabase-js');
+const { XMLParser }    = require('fast-xml-parser');
+const crypto           = require('crypto');
 
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
+
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const EDGE_FUNCTION_URL    = `${SUPABASE_URL}/functions/v1/analyze-vnext`;
 
-const MAX_ARTICLES_PER_FEED = 3;
-const MIN_CONTENT_LENGTH    = 100;
-const MAX_CONTENT_LENGTH    = 5000;
-const FEED_TIMEOUT_MS       = 15000; // abort slow feeds early
+const MAX_ARTICLES_PER_FEED  = 3;
+const MAX_GDELT_ARTICLES     = 20;   // extra articles from GDELT per run
+const FETCH_TIMEOUT_MS       = 25000;
+const CONTENT_MAX_CHARS      = 8000;
+const RUN_BUDGET_MS          = 23 * 60 * 1000; // 23 min hard stop
 
-// ─── FEED LIST ───────────────────────────────────────────────────────────────
+const runStart = Date.now();
+
+// ── RSS Feeds ─────────────────────────────────────────────────────────────────
+
 const FEEDS = [
+  // South Africa
+  { url: 'https://www.news24.com/rss',             name: 'News24',           domain: 'news24.com',           country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://www.dailymaverick.co.za/feed',   name: 'Daily Maverick',   domain: 'dailymaverick.co.za',  country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://ewn.co.za/RSS',                  name: 'EWN',              domain: 'ewn.co.za',            country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://www.businessinsider.co.za/feed', name: 'BusinessInsider ZA', domain: 'businessinsider.co.za', country: 'ZA', media_class: 'Business', topic_class: 'Finance' },
+  { url: 'https://www.politicsweb.co.za/rss',      name: 'PoliticsWeb',      domain: 'politicsweb.co.za',    country: 'ZA', media_class: 'Political',   topic_class: 'Politics' },
 
-  // ── South Africa ──────────────────────────────────────────────────────────
-  { feed_url: 'https://www.sabcnews.com/sabcnews/feed/', publisher_name: 'SABC News', publisher_domain: 'sabcnews.com', region: 'ZA', country: 'South Africa', media_class: 'digital_native', topic_class: 'general_news' },
-  { feed_url: 'https://ewn.co.za/RSS', publisher_name: 'EWN', publisher_domain: 'ewn.co.za', region: 'ZA', country: 'South Africa', media_class: 'digital_native', topic_class: 'general_news' },
-  { feed_url: 'https://www.moneyweb.co.za/feed/', publisher_name: 'Moneyweb', publisher_domain: 'moneyweb.co.za', region: 'ZA', country: 'South Africa', media_class: 'digital_native', topic_class: 'business' },
-  { feed_url: 'https://feeds.feedburner.com/dailymaverick/opinionista', publisher_name: 'Daily Maverick Opinion', publisher_domain: 'dailymaverick.co.za', region: 'ZA', country: 'South Africa', media_class: 'digital_native', topic_class: 'opinion' },
+  // Africa
+  { url: 'https://allafrica.com/tools/headlines/rdf/africa/headlines.rdf', name: 'AllAfrica', domain: 'allafrica.com', country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
+  { url: 'https://www.theafricareport.com/feed',   name: 'Africa Report',    domain: 'theafricareport.com',  country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
 
-  // ── Africa ────────────────────────────────────────────────────────────────
-  { feed_url: 'https://www.theafricareport.com/feed/', publisher_name: 'The Africa Report', publisher_domain: 'theafricareport.com', region: 'AF', country: 'Pan-Africa', media_class: 'digital_native', topic_class: 'general_news' },
-  { feed_url: 'https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf', publisher_name: 'AllAfrica', publisher_domain: 'allafrica.com', region: 'AF', country: 'Pan-Africa', media_class: 'digital_native', topic_class: 'general_news' },
-  { feed_url: 'https://www.premiumtimesng.com/feed/', publisher_name: 'Premium Times Nigeria', publisher_domain: 'premiumtimesng.com', region: 'AF', country: 'Nigeria', media_class: 'digital_native', topic_class: 'politics' },
+  // UK
+  { url: 'https://feeds.theguardian.com/theguardian/world/rss', name: 'The Guardian', domain: 'theguardian.com', country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
+  { url: 'https://www.telegraph.co.uk/rss.xml',   name: 'The Telegraph',    domain: 'telegraph.co.uk',      country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
+  { url: 'https://www.dailymail.co.uk/articles.rss', name: 'Daily Mail',    domain: 'dailymail.co.uk',      country: 'GB', media_class: 'Tabloid',    topic_class: 'General' },
 
-  // ── UK ────────────────────────────────────────────────────────────────────
-  { feed_url: 'https://feeds.theguardian.com/theguardian/politics/rss', publisher_name: 'The Guardian', publisher_domain: 'theguardian.com', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'politics' },
-  { feed_url: 'https://www.telegraph.co.uk/rss.xml', publisher_name: 'The Telegraph', publisher_domain: 'telegraph.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.independent.co.uk/news/uk/politics/rss', publisher_name: 'The Independent', publisher_domain: 'independent.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'tabloid', topic_class: 'politics' },
-  { feed_url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', publisher_name: 'BBC News', publisher_domain: 'bbc.co.uk', region: 'UK', country: 'United Kingdom', media_class: 'broadsheet', topic_class: 'politics' },
-  { feed_url: 'https://unherd.com/feed/', publisher_name: 'UnHerd', publisher_domain: 'unherd.com', region: 'UK', country: 'United Kingdom', media_class: 'digital_native', topic_class: 'opinion' },
+  // US Mainstream
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NYT World', domain: 'nytimes.com', country: 'US', media_class: 'Broadsheet', topic_class: 'General' },
+  { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post', domain: 'washingtonpost.com', country: 'US', media_class: 'Broadsheet', topic_class: 'General' },
+  { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox News', domain: 'foxnews.com', country: 'US', media_class: 'Cable News', topic_class: 'Politics' },
+  { url: 'https://www.breitbart.com/feed', name: 'Breitbart',              domain: 'breitbart.com',        country: 'US', media_class: 'Far Right',   topic_class: 'Politics' },
 
-  // ── US ────────────────────────────────────────────────────────────────────
-  { feed_url: 'https://feeds.foxnews.com/foxnews/politics', publisher_name: 'Fox News', publisher_domain: 'foxnews.com', region: 'US', country: 'United States', media_class: 'digital_native', topic_class: 'politics' },
-  { feed_url: 'https://feeds.npr.org/1014/rss.xml', publisher_name: 'NPR Politics', publisher_domain: 'npr.org', region: 'US', country: 'United States', media_class: 'digital_native', topic_class: 'politics' },
-  { feed_url: 'https://www.breitbart.com/feed/', publisher_name: 'Breitbart', publisher_domain: 'breitbart.com', region: 'US', country: 'United States', media_class: 'fringe', topic_class: 'politics' },
-  { feed_url: 'https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml', publisher_name: 'New York Times', publisher_domain: 'nytimes.com', region: 'US', country: 'United States', media_class: 'broadsheet', topic_class: 'politics' },
-  { feed_url: 'https://theintercept.com/feed/?rss', publisher_name: 'The Intercept', publisher_domain: 'theintercept.com', region: 'US', country: 'United States', media_class: 'digital_native', topic_class: 'politics' },
-  { feed_url: 'https://reason.com/feed/', publisher_name: 'Reason', publisher_domain: 'reason.com', region: 'US', country: 'United States', media_class: 'digital_native', topic_class: 'opinion' },
-  { feed_url: 'https://www.motherjones.com/feed/', publisher_name: 'Mother Jones', publisher_domain: 'motherjones.com', region: 'US', country: 'United States', media_class: 'digital_native', topic_class: 'politics' },
+  // State Media
+  { url: 'https://www.rt.com/rss/',                name: 'RT',               domain: 'rt.com',               country: 'RU', media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.globaltimes.cn/rss/outbrain.xml', name: 'Global Times', domain: 'globaltimes.cn',     country: 'CN', media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://english.aljazeera.net/xml/rss/all.xml', name: 'Al Jazeera', domain: 'aljazeera.com',     country: 'QA', media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.voanews.com/api/zkyiqkemii',  name: 'VOA News',        domain: 'voanews.com',          country: 'US', media_class: 'State Media', topic_class: 'General' },
 
-  // ── Europe ────────────────────────────────────────────────────────────────
-  { feed_url: 'https://www.spiegel.de/international/index.rss', publisher_name: 'Spiegel International', publisher_domain: 'spiegel.de', region: 'EU', country: 'Germany', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.politico.eu/feed/', publisher_name: 'Politico Europe', publisher_domain: 'politico.eu', region: 'EU', country: 'Europe', media_class: 'digital_native', topic_class: 'politics' },
+  // Health / Wellness — high manipulation density
+  { url: 'https://www.naturalnews.com/rss.xml',    name: 'Natural News',     domain: 'naturalnews.com',      country: 'US', media_class: 'Alt Health',  topic_class: 'Health' },
+  { url: 'https://childrenshealthdefense.org/feed/', name: "Children's Health Defense", domain: 'childrenshealthdefense.org', country: 'US', media_class: 'Alt Health', topic_class: 'Health' },
 
-  // ── International / State Media ───────────────────────────────────────────
-  { feed_url: 'https://www.rt.com/rss/news/', publisher_name: 'RT', publisher_domain: 'rt.com', region: 'INT', country: 'Russia', media_class: 'state_media', topic_class: 'general_news' },
-  { feed_url: 'https://www.aljazeera.com/xml/rss/all.xml', publisher_name: 'Al Jazeera', publisher_domain: 'aljazeera.com', region: 'INT', country: 'Qatar', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.middleeasteye.net/rss', publisher_name: 'Middle East Eye', publisher_domain: 'middleeasteye.net', region: 'INT', country: 'United Kingdom', media_class: 'digital_native', topic_class: 'general_news' },
-  { feed_url: 'https://www.france24.com/en/rss', publisher_name: 'France 24', publisher_domain: 'france24.com', region: 'INT', country: 'France', media_class: 'broadsheet', topic_class: 'general_news' },
-  { feed_url: 'https://www.scmp.com/rss/91/feed', publisher_name: 'South China Morning Post', publisher_domain: 'scmp.com', region: 'INT', country: 'Hong Kong', media_class: 'broadsheet', topic_class: 'general_news' },
+  // Finance / Investment
+  { url: 'https://www.zerohedge.com/fullrss2.xml', name: 'ZeroHedge',        domain: 'zerohedge.com',        country: 'US', media_class: 'Alt Finance', topic_class: 'Finance' },
 
-  // ── Advertorial / Business Media ──────────────────────────────────────────
-  { feed_url: 'https://www.entrepreneur.com/latest.rss', publisher_name: 'Entrepreneur', publisher_domain: 'entrepreneur.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-  { feed_url: 'https://www.inc.com/rss', publisher_name: 'Inc.', publisher_domain: 'inc.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-  { feed_url: 'https://www.fastcompany.com/latest/rss', publisher_name: 'Fast Company', publisher_domain: 'fastcompany.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-  { feed_url: 'https://www.forbes.com/real-time/feed2/', publisher_name: 'Forbes', publisher_domain: 'forbes.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-  { feed_url: 'https://feeds.businessinsider.com/custom/all', publisher_name: 'Business Insider', publisher_domain: 'businessinsider.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'business' },
-
-  // ── Health & Lifestyle ────────────────────────────────────────────────────
-  { feed_url: 'https://www.menshealth.com/rss/all.xml/', publisher_name: "Men's Health", publisher_domain: 'menshealth.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.womenshealthmag.com/rss/all.xml/', publisher_name: "Women's Health", publisher_domain: 'womenshealthmag.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.prevention.com/rss/all.xml/', publisher_name: 'Prevention', publisher_domain: 'prevention.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.healthline.com/rss/health-news', publisher_name: 'Healthline', publisher_domain: 'healthline.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.mindbodygreen.com/rss.xml', publisher_name: 'MindBodyGreen', publisher_domain: 'mindbodygreen.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'health_wellness' },
-
-  // ── Self-Improvement ──────────────────────────────────────────────────────
-  { feed_url: 'https://www.tonyrobbins.com/feed/', publisher_name: 'Tony Robbins', publisher_domain: 'tonyrobbins.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'self_improvement' },
-  { feed_url: 'https://www.mindvalley.com/blog/feed', publisher_name: 'Mindvalley', publisher_domain: 'mindvalley.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'self_improvement' },
-  { feed_url: 'https://www.iwillteachyoutoberich.com/feed/', publisher_name: 'I Will Teach You To Be Rich', publisher_domain: 'iwillteachyoutoberich.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'self_improvement' },
-  { feed_url: 'https://foundr.com/feed', publisher_name: 'Foundr', publisher_domain: 'foundr.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'self_improvement' },
-
-  // ── Charities & NGOs ──────────────────────────────────────────────────────
-  { feed_url: 'https://www.wwf.org.uk/rss.xml', publisher_name: 'WWF UK', publisher_domain: 'wwf.org.uk', region: 'UK', country: 'United Kingdom', media_class: 'charity', topic_class: 'general_news' },
-  { feed_url: 'https://www.greenpeace.org/international/feed/', publisher_name: 'Greenpeace International', publisher_domain: 'greenpeace.org', region: 'INT', country: 'International', media_class: 'charity', topic_class: 'general_news' },
-  { feed_url: 'https://www.oxfam.org/en/rss.xml', publisher_name: 'Oxfam', publisher_domain: 'oxfam.org', region: 'INT', country: 'United Kingdom', media_class: 'charity', topic_class: 'general_news' },
-  { feed_url: 'https://www.amnesty.org/en/feed/', publisher_name: 'Amnesty International', publisher_domain: 'amnesty.org', region: 'INT', country: 'International', media_class: 'charity', topic_class: 'general_news' },
-
-  // ── Government & Public Health ────────────────────────────────────────────
-  { feed_url: 'https://www.who.int/feeds/entity/mediacentre/news/en/rss.xml', publisher_name: 'World Health Organization', publisher_domain: 'who.int', region: 'INT', country: 'International', media_class: 'government', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.nhs.uk/news/rss.aspx', publisher_name: 'NHS', publisher_domain: 'nhs.uk', region: 'UK', country: 'United Kingdom', media_class: 'government', topic_class: 'health_wellness' },
-  { feed_url: 'https://www.gov.za/rss.xml', publisher_name: 'South African Government', publisher_domain: 'gov.za', region: 'ZA', country: 'South Africa', media_class: 'government', topic_class: 'politics' },
-
-  // ── Higher Education ──────────────────────────────────────────────────────
-  { feed_url: 'https://news.harvard.edu/gazette/feed/', publisher_name: 'Harvard Gazette', publisher_domain: 'harvard.edu', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'higher_education' },
-  { feed_url: 'https://www.wbs.ac.uk/news/feed/', publisher_name: 'Warwick Business School', publisher_domain: 'wbs.ac.uk', region: 'UK', country: 'United Kingdom', media_class: 'advertorial', topic_class: 'higher_education' },
-  { feed_url: 'https://poetsandquants.com/feed/', publisher_name: 'Poets & Quants', publisher_domain: 'poetsandquants.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'higher_education' },
-
-  // ── Recruitment ───────────────────────────────────────────────────────────
-  { feed_url: 'https://www.glassdoor.com/blog/feed/', publisher_name: 'Glassdoor Blog', publisher_domain: 'glassdoor.com', region: 'US', country: 'United States', media_class: 'recruitment', topic_class: 'hr_recruitment' },
-
-  // ── Real Estate ───────────────────────────────────────────────────────────
-  { feed_url: 'https://www.privateproperty.co.za/rss/news', publisher_name: 'Private Property ZA', publisher_domain: 'privateproperty.co.za', region: 'ZA', country: 'South Africa', media_class: 'advertorial', topic_class: 'real_estate' },
-  { feed_url: 'https://www.property24.com/rss/articles', publisher_name: 'Property24', publisher_domain: 'property24.com', region: 'ZA', country: 'South Africa', media_class: 'advertorial', topic_class: 'real_estate' },
-  { feed_url: 'https://www.zillow.com/blog/feed/', publisher_name: 'Zillow Blog', publisher_domain: 'zillow.com', region: 'US', country: 'United States', media_class: 'advertorial', topic_class: 'real_estate' },
-
-  // ── Financial Services ────────────────────────────────────────────────────
-  { feed_url: 'https://www.debt.com/blog/feed/', publisher_name: 'Debt.com', publisher_domain: 'debt.com', region: 'US', country: 'United States', media_class: 'health_commercial', topic_class: 'business' },
+  // International
+  { url: 'https://www.dw.com/rss/rss/eng-top.xml', name: 'DW English',      domain: 'dw.com',               country: 'DE', media_class: 'Broadsheet',  topic_class: 'General' },
+  { url: 'https://rss.france24.com/rss/en/news',   name: 'France24',        domain: 'france24.com',         country: 'FR', media_class: 'Mainstream',   topic_class: 'General' },
 ];
 
-// ─── LANGUAGE DETECTION ──────────────────────────────────────────────────────
-function detectLanguage(text) {
-  const sample = text.slice(0, 500).toLowerCase();
-  const afrikaans = ['die ', 'van ', 'het ', 'wat ', 'nie ', 'dat ', 'met ', 'vir '];
-  const french    = [' les ', ' des ', ' une ', ' que ', ' est ', ' par '];
-  const arabic    = ['\u0627\u0644', '\u0645\u0646', '\u0625\u0644\u0649'];
-  const score = (signals) => signals.filter(s => sample.includes(s)).length;
-  if (score(arabic) >= 2)    return { lang: 'ar', confidence: 'heuristic', in_distribution: false };
-  if (score(afrikaans) >= 3) return { lang: 'af', confidence: 'heuristic', in_distribution: false };
-  if (score(french) >= 3)    return { lang: 'fr', confidence: 'heuristic', in_distribution: false };
-  return { lang: 'en', confidence: 'heuristic', in_distribution: true };
+// ── GDELT 2.0 Doc API ─────────────────────────────────────────────────────────
+// Surfaces high-traction articles we might miss from RSS
+// Returns articles sorted by GDELT's own relevance + tone signal
+// Free, no API key, global coverage
+
+const GDELT_QUERIES = [
+  { query: '"manipulation" OR "propaganda" OR "disinformation"', theme: 'Manipulation' },
+  { query: '"conspiracy" OR "misinformation" OR "fake news"',    theme: 'Disinfo' },
+  { query: '"election" OR "voter fraud" OR "stolen election"',   theme: 'Election' },
+  { query: '"vaccine" OR "COVID" OR "pandemic" misinformation',  theme: 'Health Disinfo' },
+];
+
+async function fetchGDELT(query, maxRecords = 5) {
+  const params = new URLSearchParams({
+    query,
+    mode:       'artlist',
+    maxrecords: String(maxRecords),
+    format:     'json',
+    timespan:   '1d',    // last 24 hours only
+    sort:       'hybridrel',
+  });
+
+  const url = `https://api.gdeltproject.org/api/v2/doc/doc?${params}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.articles || [];
+  } catch {
+    clearTimeout(timeout);
+    return [];
+  }
 }
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-const parser   = new Parser({
-  timeout: FEED_TIMEOUT_MS,
-  headers: { 'User-Agent': 'BSDetective-Crawler/1.0' },
-});
+// ── RSS Parsing ───────────────────────────────────────────────────────────────
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-function hashContent(text) {
+async function fetchFeed(feedUrl) {
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(feedUrl, {
+      signal:  controller.signal,
+      headers: { 'User-Agent': 'BSDetective-Crawler/1.0' },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const xml    = await res.text();
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+    const parsed = parser.parse(xml);
+
+    const channel = parsed?.rss?.channel || parsed?.feed;
+    if (!channel) return [];
+
+    const items = channel.item || channel.entry || [];
+    const arr   = Array.isArray(items) ? items : [items];
+
+    return arr.slice(0, MAX_ARTICLES_PER_FEED).map(item => ({
+      title: item.title?.['#text'] || item.title || '',
+      url:   item.link?.['#text'] || item.link?.['@_href'] || item.link || '',
+      published_at: item.pubDate || item.published || item.updated || null,
+    })).filter(a => a.url);
+
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+// ── Article Content Fetching ──────────────────────────────────────────────────
+
+async function fetchArticleContent(url) {
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      signal:  controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BSDetective/1.0)' },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+
+    // Lightweight extraction — strip tags, collapse whitespace
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return text.slice(0, CONTENT_MAX_CHARS);
+
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+// ── Scan via Edge Function ────────────────────────────────────────────────────
+
+async function scanContent(text, url) {
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), 35000);
+
+  try {
+    const res = await fetch(EDGE_FUNCTION_URL, {
+      method:  'POST',
+      signal:  controller.signal,
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'apikey':        SUPABASE_SERVICE_KEY,
+      },
+      body: JSON.stringify({
+        text,
+        url,
+        scan_source: 'crawler',
+        force_model: 'haiku',
+      }),
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`Edge function HTTP ${res.status}`);
+    return await res.json();
+
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+// ── Domain Utilities ──────────────────────────────────────────────────────────
+
+function extractDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function contentHash(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
-function extractContent(item) {
-  const sources = [
-    { key: 'content:encoded', value: item['content:encoded'], type: 'full_content_encoded' },
-    { key: 'content',         value: item.content,            type: 'content'              },
-    { key: 'contentSnippet',  value: item.contentSnippet,     type: 'snippet'              },
-    { key: 'summary',         value: item.summary,            type: 'summary'              },
-    { key: 'title',           value: item.title,              type: 'title_only'           },
-  ];
-  for (const source of sources) {
-    if (source.value && source.value.trim().length > 0) {
-      const clean = source.value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      return { text: clean, extraction_type: source.type };
-    }
-  }
-  return { text: '', extraction_type: 'none' };
-}
+// ── MBFC Lookup ───────────────────────────────────────────────────────────────
+// Pull enrichment for a domain from the domain_enrichment table
+// Returns null if not found — never blocks a scan
 
-function truncateContent(text, maxLen) {
-  if (text.length <= maxLen) return { text, truncated: false };
-  return { text: text.slice(0, maxLen) + '...', truncated: true };
-}
-
-async function isAlreadyQueued(contentHash) {
-  const [queueCheck, scanCheck] = await Promise.all([
-    supabase.from('crawler_queue').select('id').eq('content_hash', contentHash).maybeSingle(),
-    supabase.from('crawler_scans').select('id').eq('content_hash', contentHash).maybeSingle(),
-  ]);
-  return !!(queueCheck.data || scanCheck.data);
-}
-
-async function addToQueue(item) {
-  const { error } = await supabase.from('crawler_queue').insert(item);
-  if (error && error.code !== '23505') {
-    throw error;
-  }
-}
-
-// ─── FEED PROCESSOR ──────────────────────────────────────────────────────────
-async function processFeed(feedConfig) {
-  console.log(`📡 ${feedConfig.publisher_name} (${feedConfig.region})`);
-
-  let feed;
+async function getMBFC(supabase, domain) {
+  if (!domain) return null;
   try {
-    const feedPromise = parser.parseURL(feedConfig.feed_url);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Feed timeout')), FEED_TIMEOUT_MS + 2000)
-    );
-    feed = await Promise.race([feedPromise, timeoutPromise]);
-  } catch (err) {
-    console.warn(`  ⚠️  Feed failed: ${err.message}`);
-    return { queued: 0, skipped: 0, errors: 1 };
+    const { data } = await supabase
+      .from('domain_enrichment')
+      .select('mbfc_bias, mbfc_factuality, mbfc_credibility')
+      .eq('domain', domain)
+      .maybeSingle();
+    return data || null;
+  } catch {
+    return null;
   }
-
-  const items = feed.items.slice(0, MAX_ARTICLES_PER_FEED);
-  let queued = 0, skipped = 0, errors = 0;
-
-  for (const item of items) {
-    const { text: rawText, extraction_type } = extractContent(item);
-
-    if (rawText.length < MIN_CONTENT_LENGTH) {
-      skipped++;
-      continue;
-    }
-
-    const contentHash = hashContent(rawText);
-
-    if (await isAlreadyQueued(contentHash)) {
-      console.log(`  ↩️  Already exists: ${item.title?.slice(0, 50)}`);
-      skipped++;
-      continue;
-    }
-
-    const { text: finalText, truncated } = truncateContent(rawText, MAX_CONTENT_LENGTH);
-    const langResult = detectLanguage(finalText);
-
-    try {
-      await addToQueue({
-        content_hash:             contentHash,
-        source_type:              'rss',
-        feed_url:                 feedConfig.feed_url,
-        publisher_name:           feedConfig.publisher_name,
-        publisher_domain:         feedConfig.publisher_domain,
-        region:                   feedConfig.region,
-        country:                  feedConfig.country,
-        media_class:              feedConfig.media_class,
-        topic_class:              feedConfig.topic_class,
-        article_url:              item.link || item.guid || '',
-        article_domain:           (() => { try { return new URL(item.link || feedConfig.feed_url).hostname; } catch { return feedConfig.publisher_domain; } })(),
-        headline_text:            item.title || '',
-        body_text:                finalText,
-        published_at:             item.pubDate || item.isoDate || null,
-        content_length:           rawText.length,
-        truncated,
-        content_extraction_type:  extraction_type,
-        language:                 langResult.lang,
-        language_confidence:      langResult.confidence,
-        in_distribution:          langResult.in_distribution,
-        status:                   'pending',
-        analyzer_version:         SCAN_VERSION.analyzer,
-        taxonomy_version:         SCAN_VERSION.taxonomy,
-        prompt_version:           SCAN_VERSION.prompt,
-      });
-
-      console.log(`  ✅ Queued: ${item.title?.slice(0, 55)}`);
-      queued++;
-    } catch (err) {
-      console.error(`  ❌ Queue insert failed: ${err.message}`);
-      errors++;
-    }
-  }
-
-  return { queued, skipped, errors };
 }
 
-// ─── MAIN ────────────────────────────────────────────────────────────────────
+// ── Persist to Supabase ───────────────────────────────────────────────────────
+
+async function persistScan(supabase, {
+  feedMeta, article, content, result, gdeltTone, gdeltSource, mbfc,
+}) {
+  const hash   = contentHash(content);
+  const domain = feedMeta?.domain || extractDomain(article.url);
+
+  // Check duplicate
+  const { data: existing } = await supabase
+    .from('crawler_scans')
+    .select('id')
+    .eq('content_hash', hash)
+    .maybeSingle();
+
+  if (existing) return { skipped: true };
+
+  const tactics = result?.tactics || [];
+
+  // Insert scan row
+  const { data: scan, error: scanErr } = await supabase
+    .from('crawler_scans')
+    .insert({
+      article_url:     article.url,
+      article_domain:  domain,
+      publisher_name:  feedMeta?.name || domain,
+      article_title:   article.title || null,
+      article_published_at: article.published_at || null,
+      country:         feedMeta?.country || null,
+      media_class:     feedMeta?.media_class || null,
+      topic_class:     feedMeta?.topic_class || null,
+      feed_name:       feedMeta?.name || 'gdelt',
+      content_hash:    hash,
+      content_length_chars: content.length,
+      truncated:       content.length >= CONTENT_MAX_CHARS,
+      scan_source:     'crawler',
+      scan_status:     'success',
+
+      // BSDetective output
+      spi_score:       result?.spi_score        ?? null,
+      the_play:        result?.the_play         ?? null,
+      emotional_targets: result?.emotional_targets ?? null,
+      blind_spots:     result?.blind_spots      ?? null,
+      the_verdict:     result?.the_verdict      ?? null,
+      raw_output:      result,
+
+      // GDELT enrichment
+      gdelt_tone:   gdeltTone  ?? null,
+      gdelt_source: gdeltSource ?? false,
+
+      // MBFC enrichment
+      mbfc_bias:        mbfc?.mbfc_bias        ?? null,
+      mbfc_factuality:  mbfc?.mbfc_factuality  ?? null,
+      mbfc_credibility: mbfc?.mbfc_credibility ?? null,
+
+      // Versions
+      analyzer_version: '1.0',
+      taxonomy_version: '1.0',
+      prompt_version:   '1.0',
+    })
+    .select('id')
+    .single();
+
+  if (scanErr) throw new Error(`Scan insert error: ${scanErr.message}`);
+
+  // Insert tactics
+  if (tactics.length > 0) {
+    const tacticRows = tactics.map(t => ({
+      scan_id:          scan.id,
+      tactic_code:      t.code  || null,
+      tactic_label:     t.label || t.name || t,
+      severity:         t.severity || null,
+      evidence_excerpt: t.evidence || null,
+      taxonomy_version: '1.0',
+    }));
+
+    const { error: tacticErr } = await supabase
+      .from('crawler_scan_tactics')
+      .insert(tacticRows);
+
+    if (tacticErr) console.warn(`Tactic insert warning: ${tacticErr.message}`);
+  }
+
+  return { skipped: false, scanId: scan.id, spiScore: result?.spi_score };
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 async function main() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('❌ Missing env vars: SUPABASE_URL or SUPABASE_SERVICE_KEY');
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
     process.exit(1);
   }
 
-  // ── Batch slicing: FEED_START / FEED_END env vars let the YML split feeds
-  // across two parallel jobs without duplicating this file.
-  // Job A: FEED_START=0  FEED_END=27  (feeds 0–27,  28 feeds)
-  // Job B: FEED_START=28 FEED_END=999 (feeds 28–end, 27 feeds)
-  // If neither var is set, the full list runs (backwards-compatible).
-  const feedStart = parseInt(process.env.FEED_START ?? '0',   10);
-  const feedEnd   = parseInt(process.env.FEED_END   ?? '999', 10);
-  const activeFeed = FEEDS.slice(feedStart, feedEnd + 1);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  console.log('🕵️  BSDetective RSS Crawler (queue mode)');
-  console.log(`📅 ${new Date().toISOString()}`);
-  console.log(`📰 Feeds: ${activeFeed.length} of ${FEEDS.length} (indices ${feedStart}–${Math.min(feedEnd, FEEDS.length - 1)}) | Max per feed: ${MAX_ARTICLES_PER_FEED}`);
+  const stats = { rss: 0, gdelt: 0, skipped: 0, errors: 0, scanned: 0 };
 
-  const totals = { queued: 0, skipped: 0, errors: 0 };
+  // ── Phase 1: RSS Feeds ──────────────────────────────────────────────────────
 
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < activeFeed.length; i += BATCH_SIZE) {
-    const batch = activeFeed.slice(i, i + BATCH_SIZE);
-    console.log(`\n── Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(activeFeed.length / BATCH_SIZE)} ──`);
-    const results = await Promise.all(batch.map(processFeed));
-    results.forEach(r => {
-      totals.queued  += r.queued;
-      totals.skipped += r.skipped;
-      totals.errors  += r.errors;
-    });
+  console.log(`\n── RSS Feeds (${FEEDS.length} sources) ──`);
+
+  for (const feed of FEEDS) {
+    if (Date.now() - runStart > RUN_BUDGET_MS) {
+      console.log('Run budget reached — stopping gracefully');
+      break;
+    }
+
+    let articles = [];
+    try {
+      articles = await fetchFeed(feed.url);
+      console.log(`  ${feed.name}: ${articles.length} articles`);
+    } catch (err) {
+      console.warn(`  ${feed.name}: feed error — ${err.message}`);
+      stats.errors++;
+      continue;
+    }
+
+    for (const article of articles) {
+      if (Date.now() - runStart > RUN_BUDGET_MS) break;
+
+      try {
+        const content = await fetchArticleContent(article.url);
+        if (!content || content.length < 200) continue;
+
+        const result = await scanContent(content, article.url);
+        const mbfc   = await getMBFC(supabase, feed.domain);
+
+        const { skipped } = await persistScan(supabase, {
+          feedMeta: feed,
+          article,
+          content,
+          result,
+          gdeltTone: null,
+          gdeltSource: false,
+          mbfc,
+        });
+
+        if (skipped) {
+          stats.skipped++;
+          console.log(`    ↷ skip duplicate: ${article.title?.slice(0, 60)}`);
+        } else {
+          stats.rss++;
+          stats.scanned++;
+          console.log(`    ✓ SPI ${result?.spi_score ?? '?'} [${feed.name}] ${article.title?.slice(0, 60)}`);
+        }
+      } catch (err) {
+        stats.errors++;
+        console.warn(`    ✗ ${article.url?.slice(0, 60)}: ${err.message}`);
+      }
+    }
   }
 
-  console.log('\n─────────────────────────────────────');
-  console.log('📊 Crawl Summary (no AI calls — fast by design)');
-  console.log(`  Feeds      : ${activeFeed.length}`);
-  console.log(`  Queued     : ${totals.queued}`);
-  console.log(`  Skipped    : ${totals.skipped}`);
-  console.log(`  Errors     : ${totals.errors}`);
-  console.log(`  AI cost    : $0.000 (analyze job handles this separately)`);
-  console.log('─────────────────────────────────────\n');
+  // ── Phase 2: GDELT Discovery ────────────────────────────────────────────────
+  // Surfaces high-traction articles on manipulation-adjacent themes
+  // that RSS feeds might miss
+
+  console.log(`\n── GDELT Discovery (${GDELT_QUERIES.length} queries) ──`);
+
+  const articlesPerQuery = Math.ceil(MAX_GDELT_ARTICLES / GDELT_QUERIES.length);
+
+  for (const { query, theme } of GDELT_QUERIES) {
+    if (Date.now() - runStart > RUN_BUDGET_MS) break;
+
+    const gdeltArticles = await fetchGDELT(query, articlesPerQuery);
+    console.log(`  Theme "${theme}": ${gdeltArticles.length} articles from GDELT`);
+
+    for (const ga of gdeltArticles) {
+      if (Date.now() - runStart > RUN_BUDGET_MS) break;
+
+      const url    = ga.url;
+      const domain = extractDomain(url);
+      if (!url || !domain) continue;
+
+      try {
+        const content = await fetchArticleContent(url);
+        if (!content || content.length < 200) continue;
+
+        const result = await scanContent(content, url);
+        const mbfc   = await getMBFC(supabase, domain);
+
+        const { skipped } = await persistScan(supabase, {
+          feedMeta: {
+            name:        ga.domain || domain,
+            domain:      domain,
+            country:     ga.language === 'Russian' ? 'RU' : null,
+            media_class: 'GDELT Discovery',
+            topic_class: theme,
+          },
+          article: {
+            url,
+            title:        ga.title || '',
+            published_at: ga.seendate || null,
+          },
+          content,
+          result,
+          gdeltTone:   typeof ga.tone === 'number' ? ga.tone : null,
+          gdeltSource: true,
+          mbfc,
+        });
+
+        if (skipped) {
+          stats.skipped++;
+        } else {
+          stats.gdelt++;
+          stats.scanned++;
+          console.log(`    ✓ SPI ${result?.spi_score ?? '?'} [GDELT/${theme}] ${(ga.title || url).slice(0, 60)}`);
+        }
+      } catch (err) {
+        stats.errors++;
+        console.warn(`    ✗ GDELT ${url?.slice(0, 60)}: ${err.message}`);
+      }
+    }
+  }
+
+  // ── Summary ─────────────────────────────────────────────────────────────────
+
+  const elapsed = Math.round((Date.now() - runStart) / 1000);
+
+  console.log(`
+════════════════════════════════════════
+BSDetective Crawler — Run Complete
+────────────────────────────────────────
+RSS scans:     ${stats.rss}
+GDELT scans:   ${stats.gdelt}
+Total scanned: ${stats.scanned}
+Skipped:       ${stats.skipped} (duplicates)
+Errors:        ${stats.errors}
+Elapsed:       ${elapsed}s
+════════════════════════════════════════
+  `);
 }
 
 main().catch(err => {
-  console.error('💥 Fatal:', err);
+  console.error('Fatal crawler error:', err.message);
   process.exit(1);
 });
