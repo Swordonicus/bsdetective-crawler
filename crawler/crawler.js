@@ -1,78 +1,88 @@
 /**
  * crawler.js — BSDetective Autonomous Crawler
  * ─────────────────────────────────────────────────────────────────
- * Runs daily via GitHub Actions.
+ * Runs daily via GitHub Actions (split into Batch A and Batch B).
  * Sources: RSS feeds + GDELT 2.0 Doc API (free, no auth required)
- * Enrichment: MBFC credibility lookup per domain
- * Output: crawler_scans + crawler_scan_tactics tables in Supabase
+ * Output: writes to crawler_queue for analyzer.js to process
+ * NO AI calls — that's the analyzer's job.
  * ─────────────────────────────────────────────────────────────────
  */
 
-const { createClient } = require('@supabase/supabase-js');
-const { XMLParser }    = require('fast-xml-parser');
-const crypto           = require('crypto');
+import { createClient } from '@supabase/supabase-js';
+import { XMLParser } from 'fast-xml-parser';
+import crypto from 'crypto';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL         = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const EDGE_FUNCTION_URL    = `${SUPABASE_URL}/functions/v1/analyze-vnext`;
 
-const MAX_ARTICLES_PER_FEED  = 3;
-const MAX_GDELT_ARTICLES     = 20;   // extra articles from GDELT per run
-const FETCH_TIMEOUT_MS       = 25000;
-const CONTENT_MAX_CHARS      = 8000;
-const RUN_BUDGET_MS          = 23 * 60 * 1000; // 23 min hard stop
+const FEED_START            = parseInt(process.env.FEED_START || '0', 10);
+const FEED_END              = parseInt(process.env.FEED_END   || '999', 10);
+
+const MAX_ARTICLES_PER_FEED = 3;
+const MAX_GDELT_ARTICLES    = 20;
+const FETCH_TIMEOUT_MS      = 25000;
+const CONTENT_MAX_CHARS     = 8000;
+const CONTENT_MIN_CHARS     = 200;
+const RUN_BUDGET_MS         = 18 * 60 * 1000; // 18 min hard stop (jobs have 20 min timeout)
+const GDELT_QUERY_DELAY_MS  = 5000;
+
+const SCAN_VERSION = {
+  analyzer: 'vnext_haiku_2026_03',
+  taxonomy: 'v1.0',
+  prompt:   'crawler_v1.0',
+};
 
 const runStart = Date.now();
 
 // ── RSS Feeds ─────────────────────────────────────────────────────────────────
 
-const FEEDS = [
-  // South Africa
-  { url: 'https://www.news24.com/rss',             name: 'News24',           domain: 'news24.com',           country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
-  { url: 'https://www.dailymaverick.co.za/feed',   name: 'Daily Maverick',   domain: 'dailymaverick.co.za',  country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
-  { url: 'https://ewn.co.za/RSS',                  name: 'EWN',              domain: 'ewn.co.za',            country: 'ZA', media_class: 'Mainstream',  topic_class: 'General' },
-  { url: 'https://www.businessinsider.co.za/feed', name: 'BusinessInsider ZA', domain: 'businessinsider.co.za', country: 'ZA', media_class: 'Business', topic_class: 'Finance' },
-  { url: 'https://www.politicsweb.co.za/rss',      name: 'PoliticsWeb',      domain: 'politicsweb.co.za',    country: 'ZA', media_class: 'Political',   topic_class: 'Politics' },
+const ALL_FEEDS = [
+  // 0–4: South Africa
+  { url: 'https://www.news24.com/rss',             name: 'News24',              domain: 'news24.com',              country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://www.dailymaverick.co.za/feed',   name: 'Daily Maverick',      domain: 'dailymaverick.co.za',     country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://ewn.co.za/RSS',                  name: 'EWN',                 domain: 'ewn.co.za',               country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://www.businessinsider.co.za/feed', name: 'BusinessInsider ZA',  domain: 'businessinsider.co.za',   country: 'ZA',   media_class: 'Business',    topic_class: 'Finance' },
+  { url: 'https://www.politicsweb.co.za/rss',      name: 'PoliticsWeb',         domain: 'politicsweb.co.za',       country: 'ZA',   media_class: 'Political',   topic_class: 'Politics' },
 
-  // Africa
+  // 5–6: Africa
   { url: 'https://allafrica.com/tools/headlines/rdf/africa/headlines.rdf', name: 'AllAfrica', domain: 'allafrica.com', country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
-  { url: 'https://www.theafricareport.com/feed',   name: 'Africa Report',    domain: 'theafricareport.com',  country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
+  { url: 'https://www.theafricareport.com/feed',   name: 'Africa Report',       domain: 'theafricareport.com',     country: 'INTL', media_class: 'Mainstream',  topic_class: 'General' },
 
-  // UK
+  // 7–9: UK
   { url: 'https://feeds.theguardian.com/theguardian/world/rss', name: 'The Guardian', domain: 'theguardian.com', country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
-  { url: 'https://www.telegraph.co.uk/rss.xml',   name: 'The Telegraph',    domain: 'telegraph.co.uk',      country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
-  { url: 'https://www.dailymail.co.uk/articles.rss', name: 'Daily Mail',    domain: 'dailymail.co.uk',      country: 'GB', media_class: 'Tabloid',    topic_class: 'General' },
+  { url: 'https://www.telegraph.co.uk/rss.xml',    name: 'The Telegraph',       domain: 'telegraph.co.uk',         country: 'GB',   media_class: 'Broadsheet',  topic_class: 'General' },
+  { url: 'https://www.dailymail.co.uk/articles.rss', name: 'Daily Mail',        domain: 'dailymail.co.uk',         country: 'GB',   media_class: 'Tabloid',     topic_class: 'General' },
 
-  // US Mainstream
+  // 10–13: US Mainstream
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NYT World', domain: 'nytimes.com', country: 'US', media_class: 'Broadsheet', topic_class: 'General' },
-  { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post', domain: 'washingtonpost.com', country: 'US', media_class: 'Broadsheet', topic_class: 'General' },
+  { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post',  domain: 'washingtonpost.com',      country: 'US',   media_class: 'Broadsheet',  topic_class: 'General' },
   { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox News', domain: 'foxnews.com', country: 'US', media_class: 'Cable News', topic_class: 'Politics' },
-  { url: 'https://www.breitbart.com/feed', name: 'Breitbart',              domain: 'breitbart.com',        country: 'US', media_class: 'Far Right',   topic_class: 'Politics' },
+  { url: 'https://www.breitbart.com/feed',          name: 'Breitbart',           domain: 'breitbart.com',           country: 'US',   media_class: 'Far Right',   topic_class: 'Politics' },
 
-  // State Media
-  { url: 'https://www.rt.com/rss/',                name: 'RT',               domain: 'rt.com',               country: 'RU', media_class: 'State Media', topic_class: 'General' },
-  { url: 'https://www.globaltimes.cn/rss/outbrain.xml', name: 'Global Times', domain: 'globaltimes.cn',     country: 'CN', media_class: 'State Media', topic_class: 'General' },
-  { url: 'https://english.aljazeera.net/xml/rss/all.xml', name: 'Al Jazeera', domain: 'aljazeera.com',     country: 'QA', media_class: 'State Media', topic_class: 'General' },
-  { url: 'https://www.voanews.com/api/zkyiqkemii',  name: 'VOA News',        domain: 'voanews.com',          country: 'US', media_class: 'State Media', topic_class: 'General' },
+  // 14–17: State Media
+  { url: 'https://www.rt.com/rss/',                 name: 'RT',                  domain: 'rt.com',                  country: 'RU',   media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.globaltimes.cn/rss/outbrain.xml', name: 'Global Times',    domain: 'globaltimes.cn',          country: 'CN',   media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://english.aljazeera.net/xml/rss/all.xml', name: 'Al Jazeera',    domain: 'aljazeera.com',           country: 'QA',   media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.voanews.com/api/zkyiqkemii',  name: 'VOA News',           domain: 'voanews.com',             country: 'US',   media_class: 'State Media', topic_class: 'General' },
 
-  // Health / Wellness — high manipulation density
-  { url: 'https://www.naturalnews.com/rss.xml',    name: 'Natural News',     domain: 'naturalnews.com',      country: 'US', media_class: 'Alt Health',  topic_class: 'Health' },
+  // 18–19: Health / Wellness — high manipulation density
+  { url: 'https://www.naturalnews.com/rss.xml',     name: 'Natural News',        domain: 'naturalnews.com',         country: 'US',   media_class: 'Alt Health',  topic_class: 'Health' },
   { url: 'https://childrenshealthdefense.org/feed/', name: "Children's Health Defense", domain: 'childrenshealthdefense.org', country: 'US', media_class: 'Alt Health', topic_class: 'Health' },
 
-  // Finance / Investment
-  { url: 'https://www.zerohedge.com/fullrss2.xml', name: 'ZeroHedge',        domain: 'zerohedge.com',        country: 'US', media_class: 'Alt Finance', topic_class: 'Finance' },
+  // 20: Finance / Investment
+  { url: 'https://www.zerohedge.com/fullrss2.xml',  name: 'ZeroHedge',          domain: 'zerohedge.com',           country: 'US',   media_class: 'Alt Finance', topic_class: 'Finance' },
 
-  // International
-  { url: 'https://www.dw.com/rss/rss/eng-top.xml', name: 'DW English',      domain: 'dw.com',               country: 'DE', media_class: 'Broadsheet',  topic_class: 'General' },
-  { url: 'https://rss.france24.com/rss/en/news',   name: 'France24',        domain: 'france24.com',         country: 'FR', media_class: 'Mainstream',   topic_class: 'General' },
+  // 21–22: International
+  { url: 'https://www.dw.com/rss/rss/eng-top.xml',  name: 'DW English',         domain: 'dw.com',                  country: 'DE',   media_class: 'Broadsheet',  topic_class: 'General' },
+  { url: 'https://rss.france24.com/rss/en/news',    name: 'France24',           domain: 'france24.com',            country: 'FR',   media_class: 'Mainstream',  topic_class: 'General' },
 ];
 
-// ── GDELT 2.0 Doc API ─────────────────────────────────────────────────────────
-// Surfaces high-traction articles we might miss from RSS
-// Returns articles sorted by GDELT's own relevance + tone signal
-// Free, no API key, global coverage
+// Slice feeds based on FEED_START/FEED_END env vars (for parallel jobs)
+const FEEDS = ALL_FEEDS.slice(FEED_START, FEED_END + 1);
+
+// ── GDELT 2.0 Doc API ────────────────────────────────────────────────────────
 
 const GDELT_QUERIES = [
   { query: '"manipulation" OR "propaganda" OR "disinformation"', theme: 'Manipulation' },
@@ -87,12 +97,11 @@ async function fetchGDELT(query, maxRecords = 5) {
     mode:       'artlist',
     maxrecords: String(maxRecords),
     format:     'json',
-    timespan:   '1d',    // last 24 hours only
+    timespan:   '1d',
     sort:       'hybridrel',
   });
 
   const url = `https://api.gdeltproject.org/api/v2/doc/doc?${params}`;
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -158,7 +167,6 @@ async function fetchArticleContent(url) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
 
-    // Lightweight extraction — strip tags, collapse whitespace
     const text = html
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -178,39 +186,7 @@ async function fetchArticleContent(url) {
   }
 }
 
-// ── Scan via Edge Function ────────────────────────────────────────────────────
-
-async function scanContent(text, url) {
-  const controller = new AbortController();
-  const timeout    = setTimeout(() => controller.abort(), 35000);
-
-  try {
-    const res = await fetch(EDGE_FUNCTION_URL, {
-      method:  'POST',
-      signal:  controller.signal,
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'apikey':        SUPABASE_SERVICE_KEY,
-      },
-      body: JSON.stringify({
-        text,
-        url,
-        scan_source: 'crawler',
-        force_model: 'haiku',
-      }),
-    });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error(`Edge function HTTP ${res.status}`);
-    return await res.json();
-
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
-  }
-}
-
-// ── Domain Utilities ──────────────────────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function extractDomain(url) {
   try {
@@ -220,112 +196,78 @@ function extractDomain(url) {
   }
 }
 
-function contentHash(text) {
+function hashContent(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
-// ── MBFC Lookup ───────────────────────────────────────────────────────────────
-// Pull enrichment for a domain from the domain_enrichment table
-// Returns null if not found — never blocks a scan
-
-async function getMBFC(supabase, domain) {
-  if (!domain) return null;
-  try {
-    const { data } = await supabase
-      .from('domain_enrichment')
-      .select('mbfc_bias, mbfc_factuality, mbfc_credibility')
-      .eq('domain', domain)
-      .maybeSingle();
-    return data || null;
-  } catch {
-    return null;
-  }
+function detectLanguage(text) {
+  const sample = text.slice(0, 500).toLowerCase();
+  const afrikaans = ['die ', 'van ', 'het ', 'wat ', 'nie ', 'dat ', 'met ', 'vir '];
+  const french    = [' les ', ' des ', ' une ', ' que ', ' est ', ' par '];
+  const arabic    = ['\u0627\u0644', '\u0645\u0646', '\u0625\u0644\u0649'];
+  const score = (signals) => signals.filter(s => sample.includes(s)).length;
+  if (score(arabic) >= 2)    return { lang: 'ar', confidence: 'heuristic', in_distribution: false };
+  if (score(afrikaans) >= 3) return { lang: 'af', confidence: 'heuristic', in_distribution: false };
+  if (score(french) >= 3)    return { lang: 'fr', confidence: 'heuristic', in_distribution: false };
+  return { lang: 'en', confidence: 'heuristic', in_distribution: true };
 }
 
-// ── Persist to Supabase ───────────────────────────────────────────────────────
+// ── Queue Writer ──────────────────────────────────────────────────────────────
+// Writes to crawler_queue — analyzer.js handles the AI calls.
 
-async function persistScan(supabase, {
-  feedMeta, article, content, result, gdeltTone, gdeltSource, mbfc,
+async function enqueue(supabase, {
+  sourceType, feedMeta, articleUrl, articleDomain, headline,
+  publishedAt, content, language,
 }) {
-  const hash   = contentHash(content);
-  const domain = feedMeta?.domain || extractDomain(article.url);
+  const hash = hashContent(content);
 
-  // Check duplicate
-  const { data: existing } = await supabase
+  // Skip if already queued or scanned
+  const { data: existingQueue } = await supabase
+    .from('crawler_queue')
+    .select('id')
+    .eq('content_hash', hash)
+    .maybeSingle();
+  if (existingQueue) return { skipped: true, reason: 'queued' };
+
+  const { data: existingScan } = await supabase
     .from('crawler_scans')
     .select('id')
     .eq('content_hash', hash)
     .maybeSingle();
+  if (existingScan) return { skipped: true, reason: 'scanned' };
 
-  if (existing) return { skipped: true };
-
-  const tactics = result?.tactics || [];
-
-  // Insert scan row
-  const { data: scan, error: scanErr } = await supabase
-    .from('crawler_scans')
+  const { error } = await supabase
+    .from('crawler_queue')
     .insert({
-      article_url:     article.url,
-      article_domain:  domain,
-      publisher_name:  feedMeta?.name || domain,
-      article_title:   article.title || null,
-      article_published_at: article.published_at || null,
-      country:         feedMeta?.country || null,
-      media_class:     feedMeta?.media_class || null,
-      topic_class:     feedMeta?.topic_class || null,
-      feed_name:       feedMeta?.name || 'gdelt',
-      content_hash:    hash,
-      content_length_chars: content.length,
-      truncated:       content.length >= CONTENT_MAX_CHARS,
-      scan_source:     'crawler',
-      scan_status:     'success',
+      content_hash:          hash,
+      source_type:           sourceType,
+      feed_url:              feedMeta?.url || null,
+      publisher_name:        feedMeta?.name || articleDomain,
+      publisher_domain:      feedMeta?.domain || articleDomain,
+      region:                null,
+      country:               feedMeta?.country || null,
+      media_class:           feedMeta?.media_class || null,
+      topic_class:           feedMeta?.topic_class || null,
+      article_url:           articleUrl,
+      article_domain:        articleDomain,
+      headline_text:         headline,
+      body_text:             content,
+      published_at:          publishedAt || null,
+      content_length:        content.length,
+      truncated:             content.length >= CONTENT_MAX_CHARS,
+      content_extraction_type: 'html_strip',
+      language:              language.lang,
+      language_confidence:   language.confidence,
+      in_distribution:       language.in_distribution,
+      status:                'pending',
+      queued_at:             new Date().toISOString(),
+      analyzer_version:      SCAN_VERSION.analyzer,
+      taxonomy_version:      SCAN_VERSION.taxonomy,
+      prompt_version:        SCAN_VERSION.prompt,
+    });
 
-      // BSDetective output
-      spi_score:       result?.spi_score        ?? null,
-      the_play:        result?.the_play         ?? null,
-      emotional_targets: result?.emotional_targets ?? null,
-      blind_spots:     result?.blind_spots      ?? null,
-      the_verdict:     result?.the_verdict      ?? null,
-      raw_output:      result,
-
-      // GDELT enrichment
-      gdelt_tone:   gdeltTone  ?? null,
-      gdelt_source: gdeltSource ?? false,
-
-      // MBFC enrichment
-      mbfc_bias:        mbfc?.mbfc_bias        ?? null,
-      mbfc_factuality:  mbfc?.mbfc_factuality  ?? null,
-      mbfc_credibility: mbfc?.mbfc_credibility ?? null,
-
-      // Versions
-      analyzer_version: '1.0',
-      taxonomy_version: '1.0',
-      prompt_version:   '1.0',
-    })
-    .select('id')
-    .single();
-
-  if (scanErr) throw new Error(`Scan insert error: ${scanErr.message}`);
-
-  // Insert tactics
-  if (tactics.length > 0) {
-    const tacticRows = tactics.map(t => ({
-      scan_id:          scan.id,
-      tactic_code:      t.code  || null,
-      tactic_label:     t.label || t.name || t,
-      severity:         t.severity || null,
-      evidence_excerpt: t.evidence || null,
-      taxonomy_version: '1.0',
-    }));
-
-    const { error: tacticErr } = await supabase
-      .from('crawler_scan_tactics')
-      .insert(tacticRows);
-
-    if (tacticErr) console.warn(`Tactic insert warning: ${tacticErr.message}`);
-  }
-
-  return { skipped: false, scanId: scan.id, spiScore: result?.spi_score };
+  if (error) throw new Error(`Queue insert: ${error.message}`);
+  return { skipped: false };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -338,11 +280,11 @@ async function main() {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  const stats = { rss: 0, gdelt: 0, skipped: 0, errors: 0, scanned: 0 };
+  const stats = { queued: 0, skipped: 0, errors: 0 };
+
+  console.log(`\n── RSS Feeds (${FEEDS.length} of ${ALL_FEEDS.length} — index ${FEED_START}–${FEED_END}) ──`);
 
   // ── Phase 1: RSS Feeds ──────────────────────────────────────────────────────
-
-  console.log(`\n── RSS Feeds (${FEEDS.length} sources) ──`);
 
   for (const feed of FEEDS) {
     if (Date.now() - runStart > RUN_BUDGET_MS) {
@@ -365,28 +307,28 @@ async function main() {
 
       try {
         const content = await fetchArticleContent(article.url);
-        if (!content || content.length < 200) continue;
+        if (!content || content.length < CONTENT_MIN_CHARS) continue;
 
-        const result = await scanContent(content, article.url);
-        const mbfc   = await getMBFC(supabase, feed.domain);
+        const domain   = extractDomain(article.url) || feed.domain;
+        const language = detectLanguage(content);
 
-        const { skipped } = await persistScan(supabase, {
-          feedMeta: feed,
-          article,
+        const { skipped } = await enqueue(supabase, {
+          sourceType:    'rss_article',
+          feedMeta:      feed,
+          articleUrl:    article.url,
+          articleDomain: domain,
+          headline:      article.title,
+          publishedAt:   article.published_at,
           content,
-          result,
-          gdeltTone: null,
-          gdeltSource: false,
-          mbfc,
+          language,
         });
 
         if (skipped) {
           stats.skipped++;
           console.log(`    ↷ skip duplicate: ${article.title?.slice(0, 60)}`);
         } else {
-          stats.rss++;
-          stats.scanned++;
-          console.log(`    ✓ SPI ${result?.spi_score ?? '?'} [${feed.name}] ${article.title?.slice(0, 60)}`);
+          stats.queued++;
+          console.log(`    ✓ queued [${feed.name}] ${article.title?.slice(0, 60)}`);
         }
       } catch (err) {
         stats.errors++;
@@ -396,65 +338,67 @@ async function main() {
   }
 
   // ── Phase 2: GDELT Discovery ────────────────────────────────────────────────
-  // Surfaces high-traction articles on manipulation-adjacent themes
-  // that RSS feeds might miss
+  // Only run GDELT on Batch A (FEED_START === 0) to avoid duplicate queries
 
-  console.log(`\n── GDELT Discovery (${GDELT_QUERIES.length} queries) ──`);
+  if (FEED_START === 0) {
+    console.log(`\n── GDELT Discovery (${GDELT_QUERIES.length} queries) ──`);
 
-  const articlesPerQuery = Math.ceil(MAX_GDELT_ARTICLES / GDELT_QUERIES.length);
+    const articlesPerQuery = Math.ceil(MAX_GDELT_ARTICLES / GDELT_QUERIES.length);
 
-  for (const { query, theme } of GDELT_QUERIES) {
-    if (Date.now() - runStart > RUN_BUDGET_MS) break;
-
-    const gdeltArticles = await fetchGDELT(query, articlesPerQuery);
-    console.log(`  Theme "${theme}": ${gdeltArticles.length} articles from GDELT`);
-
-    for (const ga of gdeltArticles) {
+    for (const { query, theme } of GDELT_QUERIES) {
       if (Date.now() - runStart > RUN_BUDGET_MS) break;
 
-      const url    = ga.url;
-      const domain = extractDomain(url);
-      if (!url || !domain) continue;
+      const gdeltArticles = await fetchGDELT(query, articlesPerQuery);
+      console.log(`  Theme "${theme}": ${gdeltArticles.length} articles from GDELT`);
 
-      try {
-        const content = await fetchArticleContent(url);
-        if (!content || content.length < 200) continue;
+      for (const ga of gdeltArticles) {
+        if (Date.now() - runStart > RUN_BUDGET_MS) break;
 
-        const result = await scanContent(content, url);
-        const mbfc   = await getMBFC(supabase, domain);
+        const url    = ga.url;
+        const domain = extractDomain(url);
+        if (!url || !domain) continue;
 
-        const { skipped } = await persistScan(supabase, {
-          feedMeta: {
-            name:        ga.domain || domain,
-            domain:      domain,
-            country:     ga.language === 'Russian' ? 'RU' : null,
-            media_class: 'GDELT Discovery',
-            topic_class: theme,
-          },
-          article: {
-            url,
-            title:        ga.title || '',
-            published_at: ga.seendate || null,
-          },
-          content,
-          result,
-          gdeltTone:   typeof ga.tone === 'number' ? ga.tone : null,
-          gdeltSource: true,
-          mbfc,
-        });
+        try {
+          const content = await fetchArticleContent(url);
+          if (!content || content.length < CONTENT_MIN_CHARS) continue;
 
-        if (skipped) {
-          stats.skipped++;
-        } else {
-          stats.gdelt++;
-          stats.scanned++;
-          console.log(`    ✓ SPI ${result?.spi_score ?? '?'} [GDELT/${theme}] ${(ga.title || url).slice(0, 60)}`);
+          const language = detectLanguage(content);
+
+          const { skipped } = await enqueue(supabase, {
+            sourceType:    'gdelt_article',
+            feedMeta: {
+              url:         null,
+              name:        ga.domain || domain,
+              domain:      domain,
+              country:     null,
+              media_class: 'GDELT Discovery',
+              topic_class: theme,
+            },
+            articleUrl:    url,
+            articleDomain: domain,
+            headline:      ga.title || '',
+            publishedAt:   ga.seendate || null,
+            content,
+            language,
+          });
+
+          if (skipped) {
+            stats.skipped++;
+          } else {
+            stats.queued++;
+            console.log(`    ✓ queued [GDELT/${theme}] ${(ga.title || url).slice(0, 60)}`);
+          }
+        } catch (err) {
+          stats.errors++;
+          console.warn(`    ✗ GDELT ${url?.slice(0, 60)}: ${err.message}`);
         }
-      } catch (err) {
-        stats.errors++;
-        console.warn(`    ✗ GDELT ${url?.slice(0, 60)}: ${err.message}`);
       }
+
+      // Rate-limit delay between GDELT queries
+      await new Promise(r => setTimeout(r, GDELT_QUERY_DELAY_MS));
     }
+  } else {
+    console.log('\n── GDELT Discovery: skipped (Batch B) ──');
   }
 
   // ── Summary ─────────────────────────────────────────────────────────────────
@@ -465,12 +409,11 @@ async function main() {
 ════════════════════════════════════════
 BSDetective Crawler — Run Complete
 ────────────────────────────────────────
-RSS scans:     ${stats.rss}
-GDELT scans:   ${stats.gdelt}
-Total scanned: ${stats.scanned}
-Skipped:       ${stats.skipped} (duplicates)
-Errors:        ${stats.errors}
-Elapsed:       ${elapsed}s
+Feed range:  ${FEED_START}–${FEED_END} (${FEEDS.length} feeds)
+Queued:      ${stats.queued}
+Skipped:     ${stats.skipped} (duplicates)
+Errors:      ${stats.errors}
+Elapsed:     ${elapsed}s
 ════════════════════════════════════════
   `);
 }
