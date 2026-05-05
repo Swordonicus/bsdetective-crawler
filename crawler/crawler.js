@@ -39,44 +39,42 @@ const runStart = Date.now();
 // ── RSS Feeds ─────────────────────────────────────────────────────────────────
 
 const ALL_FEEDS = [
-  // 0–4: South Africa
+  // 0–2: South Africa
   { url: 'https://feeds.24.com/articles/news24/TopStories/rss', name: 'News24', domain: 'news24.com',              country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
   { url: 'https://www.dailymaverick.co.za/dmrss',   name: 'Daily Maverick',      domain: 'dailymaverick.co.za',     country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
   // EWN: no working RSS feed found as of May 2026 — revisit or replace
-  // { url: 'https://ewn.co.za/RSS',               name: 'EWN',                 domain: 'ewn.co.za',               country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  // PoliticsWeb: Cloudflare-blocked as of May 2026
   { url: 'https://www.businessinsider.co.za/feed', name: 'BusinessInsider ZA',  domain: 'businessinsider.co.za',   country: 'ZA',   media_class: 'Business',    topic_class: 'Finance' },
-  { url: 'https://www.politicsweb.co.za/rss',      name: 'PoliticsWeb',         domain: 'politicsweb.co.za',       country: 'ZA',   media_class: 'Political',   topic_class: 'Politics' },
 
-  // 5–6: Africa
+  // 3: Africa
   { url: 'https://allafrica.com/tools/headlines/rdf/africa/headlines.rdf', name: 'AllAfrica', domain: 'allafrica.com', country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
   // Africa Report: returns 403, no alternative feed found as of May 2026
-  // { url: 'https://www.theafricareport.com/feed', name: 'Africa Report',       domain: 'theafricareport.com',     country: 'INTL', media_class: 'Mainstream',  topic_class: 'General' },
 
-  // 7–9: UK
+  // 4–6: UK
   { url: 'https://feeds.theguardian.com/theguardian/world/rss', name: 'The Guardian', domain: 'theguardian.com', country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
   { url: 'https://www.telegraph.co.uk/rss.xml',    name: 'The Telegraph',       domain: 'telegraph.co.uk',         country: 'GB',   media_class: 'Broadsheet',  topic_class: 'General' },
   { url: 'https://www.dailymail.co.uk/articles.rss', name: 'Daily Mail',        domain: 'dailymail.co.uk',         country: 'GB',   media_class: 'Tabloid',     topic_class: 'General' },
 
-  // 10–13: US Mainstream
+  // 7–10: US Mainstream
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NYT World', domain: 'nytimes.com', country: 'US', media_class: 'Broadsheet', topic_class: 'General' },
   { url: 'https://feeds.washingtonpost.com/rss/world', name: 'Washington Post',  domain: 'washingtonpost.com',      country: 'US',   media_class: 'Broadsheet',  topic_class: 'General' },
   { url: 'https://moxie.foxnews.com/google-publisher/latest.xml', name: 'Fox News', domain: 'foxnews.com', country: 'US', media_class: 'Cable News', topic_class: 'Politics' },
   { url: 'https://www.breitbart.com/feed',          name: 'Breitbart',           domain: 'breitbart.com',           country: 'US',   media_class: 'Far Right',   topic_class: 'Politics' },
 
-  // 14–17: State Media
+  // 11–14: State Media
   { url: 'https://www.rt.com/rss/',                 name: 'RT',                  domain: 'rt.com',                  country: 'RU',   media_class: 'State Media', topic_class: 'General' },
   { url: 'https://www.globaltimes.cn/rss/outbrain.xml', name: 'Global Times',    domain: 'globaltimes.cn',          country: 'CN',   media_class: 'State Media', topic_class: 'General' },
-  { url: 'https://english.aljazeera.net/xml/rss/all.xml', name: 'Al Jazeera',    domain: 'aljazeera.com',           country: 'QA',   media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera',       domain: 'aljazeera.com',           country: 'QA',   media_class: 'State Media', topic_class: 'General' },
   { url: 'https://www.voanews.com/api/zqboml-vomx-tpeivmy', name: 'VOA News', domain: 'voanews.com',             country: 'US',   media_class: 'State Media', topic_class: 'General' },
 
-  // 18–19: Health / Wellness — high manipulation density
+  // 15–16: Health / Wellness — high manipulation density
   { url: 'https://www.naturalnews.com/rss.xml',     name: 'Natural News',        domain: 'naturalnews.com',         country: 'US',   media_class: 'Alt Health',  topic_class: 'Health' },
   { url: 'https://childrenshealthdefense.org/feed/', name: "Children's Health Defense", domain: 'childrenshealthdefense.org', country: 'US', media_class: 'Alt Health', topic_class: 'Health' },
 
-  // 20: Finance / Investment
+  // 17: Finance / Investment
   { url: 'https://cms.zerohedge.com/fullrss2.xml',  name: 'ZeroHedge',          domain: 'zerohedge.com',           country: 'US',   media_class: 'Alt Finance', topic_class: 'Finance' },
 
-  // 21–22: International
+  // 18–19: International
   { url: 'https://rss.dw.com/rdf/rss-en-all',       name: 'DW English',         domain: 'dw.com',                  country: 'DE',   media_class: 'Broadsheet',  topic_class: 'General' },
   { url: 'https://www.france24.com/en/rss',          name: 'France24',           domain: 'france24.com',            country: 'FR',   media_class: 'Mainstream',  topic_class: 'General' },
 ];
@@ -133,14 +131,17 @@ async function fetchFeed(feedUrl) {
     clearTimeout(timeout);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const xml    = await res.text();
-    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', processEntities: false });
     const parsed = parser.parse(xml);
 
-    const channel = parsed?.rss?.channel || parsed?.feed;
-    if (!channel) return [];
+    // Handle RSS 2.0, Atom, and RDF 1.0 formats
+    const rdf     = parsed?.['rdf:RDF'];
+    const channel = parsed?.rss?.channel || parsed?.feed || rdf?.channel;
+    // RDF 1.0: items are siblings of channel, not children
+    const items   = rdf?.item || channel?.item || channel?.entry || [];
+    if (!channel && !rdf) return [];
 
-    const items = channel.item || channel.entry || [];
-    const arr   = Array.isArray(items) ? items : [items];
+    const arr = Array.isArray(items) ? items : [items];
 
     return arr.slice(0, MAX_ARTICLES_PER_FEED).map(item => ({
       title: item.title?.['#text'] || item.title || '',
