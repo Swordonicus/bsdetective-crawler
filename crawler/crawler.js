@@ -40,15 +40,17 @@ const runStart = Date.now();
 
 const ALL_FEEDS = [
   // 0–4: South Africa
-  { url: 'https://www.news24.com/rss',             name: 'News24',              domain: 'news24.com',              country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
-  { url: 'https://www.dailymaverick.co.za/feed',   name: 'Daily Maverick',      domain: 'dailymaverick.co.za',     country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
-  { url: 'https://ewn.co.za/RSS',                  name: 'EWN',                 domain: 'ewn.co.za',               country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://feeds.24.com/articles/news24/TopStories/rss', name: 'News24', domain: 'news24.com',              country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://www.dailymaverick.co.za/dmrss',   name: 'Daily Maverick',      domain: 'dailymaverick.co.za',     country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
+  // EWN: no working RSS feed found as of May 2026 — revisit or replace
+  // { url: 'https://ewn.co.za/RSS',               name: 'EWN',                 domain: 'ewn.co.za',               country: 'ZA',   media_class: 'Mainstream',  topic_class: 'General' },
   { url: 'https://www.businessinsider.co.za/feed', name: 'BusinessInsider ZA',  domain: 'businessinsider.co.za',   country: 'ZA',   media_class: 'Business',    topic_class: 'Finance' },
   { url: 'https://www.politicsweb.co.za/rss',      name: 'PoliticsWeb',         domain: 'politicsweb.co.za',       country: 'ZA',   media_class: 'Political',   topic_class: 'Politics' },
 
   // 5–6: Africa
   { url: 'https://allafrica.com/tools/headlines/rdf/africa/headlines.rdf', name: 'AllAfrica', domain: 'allafrica.com', country: 'INTL', media_class: 'Mainstream', topic_class: 'General' },
-  { url: 'https://www.theafricareport.com/feed',   name: 'Africa Report',       domain: 'theafricareport.com',     country: 'INTL', media_class: 'Mainstream',  topic_class: 'General' },
+  // Africa Report: returns 403, no alternative feed found as of May 2026
+  // { url: 'https://www.theafricareport.com/feed', name: 'Africa Report',       domain: 'theafricareport.com',     country: 'INTL', media_class: 'Mainstream',  topic_class: 'General' },
 
   // 7–9: UK
   { url: 'https://feeds.theguardian.com/theguardian/world/rss', name: 'The Guardian', domain: 'theguardian.com', country: 'GB', media_class: 'Broadsheet', topic_class: 'General' },
@@ -65,18 +67,18 @@ const ALL_FEEDS = [
   { url: 'https://www.rt.com/rss/',                 name: 'RT',                  domain: 'rt.com',                  country: 'RU',   media_class: 'State Media', topic_class: 'General' },
   { url: 'https://www.globaltimes.cn/rss/outbrain.xml', name: 'Global Times',    domain: 'globaltimes.cn',          country: 'CN',   media_class: 'State Media', topic_class: 'General' },
   { url: 'https://english.aljazeera.net/xml/rss/all.xml', name: 'Al Jazeera',    domain: 'aljazeera.com',           country: 'QA',   media_class: 'State Media', topic_class: 'General' },
-  { url: 'https://www.voanews.com/api/zkyiqkemii',  name: 'VOA News',           domain: 'voanews.com',             country: 'US',   media_class: 'State Media', topic_class: 'General' },
+  { url: 'https://www.voanews.com/api/zqboml-vomx-tpeivmy', name: 'VOA News', domain: 'voanews.com',             country: 'US',   media_class: 'State Media', topic_class: 'General' },
 
   // 18–19: Health / Wellness — high manipulation density
   { url: 'https://www.naturalnews.com/rss.xml',     name: 'Natural News',        domain: 'naturalnews.com',         country: 'US',   media_class: 'Alt Health',  topic_class: 'Health' },
   { url: 'https://childrenshealthdefense.org/feed/', name: "Children's Health Defense", domain: 'childrenshealthdefense.org', country: 'US', media_class: 'Alt Health', topic_class: 'Health' },
 
   // 20: Finance / Investment
-  { url: 'https://www.zerohedge.com/fullrss2.xml',  name: 'ZeroHedge',          domain: 'zerohedge.com',           country: 'US',   media_class: 'Alt Finance', topic_class: 'Finance' },
+  { url: 'https://cms.zerohedge.com/fullrss2.xml',  name: 'ZeroHedge',          domain: 'zerohedge.com',           country: 'US',   media_class: 'Alt Finance', topic_class: 'Finance' },
 
   // 21–22: International
-  { url: 'https://www.dw.com/rss/rss/eng-top.xml',  name: 'DW English',         domain: 'dw.com',                  country: 'DE',   media_class: 'Broadsheet',  topic_class: 'General' },
-  { url: 'https://rss.france24.com/rss/en/news',    name: 'France24',           domain: 'france24.com',            country: 'FR',   media_class: 'Mainstream',  topic_class: 'General' },
+  { url: 'https://rss.dw.com/rdf/rss-en-all',       name: 'DW English',         domain: 'dw.com',                  country: 'DE',   media_class: 'Broadsheet',  topic_class: 'General' },
+  { url: 'https://www.france24.com/en/rss',          name: 'France24',           domain: 'france24.com',            country: 'FR',   media_class: 'Mainstream',  topic_class: 'General' },
 ];
 
 // Slice feeds based on FEED_START/FEED_END env vars (for parallel jobs)
