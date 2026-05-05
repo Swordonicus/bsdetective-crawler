@@ -99,7 +99,16 @@ async function markQueueItem(id, status, errorMessage = null) {
     .eq('id', id);
 }
 
+function lookupMbfc(item) {
+  const strip = (d) => d?.replace(/^www\./i, '').toLowerCase();
+  return mbfcCache.get(strip(item.article_domain))
+      || mbfcCache.get(strip(item.publisher_domain))
+      || null;
+}
+
 async function storeScan(item, result) {
+  const mbfc = lookupMbfc(item);
+
   const { data, error } = await supabase
     .from('crawler_scans')
     .insert({
@@ -154,8 +163,9 @@ async function storeScan(item, result) {
       gdelt_tone:               null,  // GDELT artlist mode doesn't provide per-article tone
 
       // MBFC enrichment (from domain_enrichment cache)
-      // Strip www. prefix to match domain_enrichment keys
-      ...(mbfcCache.get(item.article_domain?.replace(/^www\./i, '')) || {}),
+      mbfc_bias:                mbfc?.mbfc_bias ?? null,
+      mbfc_factuality:          mbfc?.mbfc_factuality ?? null,
+      mbfc_credibility:         mbfc?.mbfc_credibility ?? null,
 
       // BSDetective output
       spi_score:                result.spi_score ?? null,
@@ -235,7 +245,7 @@ async function main() {
       const result = await scanContent(item.body_text, item.article_url);
       await storeScan(item, result);
       await markQueueItem(item.id, 'done');
-      const mbfc = mbfcCache.get(item.article_domain?.replace(/^www\./i, ''));
+      const mbfc = lookupMbfc(item);
       const mbfcTag = mbfc ? `${mbfc.mbfc_credibility}` : 'no-mbfc';
       console.log(`  ✅ SPI ${result.spi_score ?? '?'} | ${item.language} | ${mbfcTag} | done`);
       totals.scanned++;
