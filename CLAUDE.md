@@ -102,23 +102,20 @@ supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
 ## Pending Work
 
-### 1. Broken RSS Feeds
+### 1. Broken RSS Feeds (resolved)
 
-The following feeds in `BSD Crawler/crawler.js` `ALL_FEEDS` are returning 404/403 and need replacement URLs:
+All fixable feeds resolved (May 2026). Feed array reduced from 23 to 20 active feeds. Fixes included: new URLs for News24, Daily Maverick, DW, VOA, ZeroHedge, France24, Al Jazeera; RDF 1.0 parsing support for DW and AllAfrica; entity expansion limit fix for Guardian, Fox News, BusinessInsider ZA, ZeroHedge.
 
-- News24 (`news24.com`)
-- EWN (`ewn.co.za`)
-- DW English (`dw.com`)
-- VOA News (`voanews.com`)
-- ZeroHedge (`zerohedge.com`)
-- France24 (`france24.com`)
-- The Guardian (`theguardian.com`)
-- Daily Maverick (`dailymaverick.co.za`)
-- Africa Report (`theafricareport.com`)
+Three feeds removed with no working replacements:
+- **EWN** (`ewn.co.za`) — no working RSS feed, site removed RSS support
+- **Africa Report** (`theafricareport.com`) — 403 on all feed endpoints, likely paywalled
+- **PoliticsWeb** (`politicsweb.co.za`) — Cloudflare-blocked
 
-### 2. Analyzer MBFC Enrichment Patch
+Consider replacing with SABC News, IOL, or Africanews.
 
-`BSD Crawler/analyzer.js` `storeScan()` reads from the in-memory `mbfcCache` and spreads MBFC fields into the `crawler_scans` insert, but `mbfc_bias`, `mbfc_factuality`, and `mbfc_credibility` are not being written correctly to `crawler_scans` rows during queue processing. Needs investigation and fix.
+### 2. Analyzer MBFC Enrichment Patch (resolved)
+
+Fixed May 2026. Root causes: (a) `article_domain` was NULL for many queue items, so the MBFC cache lookup returned nothing; (b) no fallback to `publisher_domain`; (c) domain mismatches (e.g. `dailymail.com` vs `dailymail.co.uk`). Fix: added `lookupMbfc()` helper that tries `article_domain` then `publisher_domain` (both www-stripped). Backfilled existing scans (22 → 2,239 of 2,768 enriched).
 
 ### 3. Extension Field Name Check
 
