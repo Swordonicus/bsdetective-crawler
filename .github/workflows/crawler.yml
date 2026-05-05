@@ -7,13 +7,22 @@ on:
 
 jobs:
 
-  # ── Stage 1A: RSS Feed Crawler — Batch A (feeds 0–27) ───────────────────────
-  # ZA, Africa, UK, US politics/opinion, Europe, State Media, Business Insider
-  # No AI calls. Target: under 15 minutes.
-  crawl-rss-a:
-    name: RSS Feed Crawler (A)
+  # ── Stage 1: RSS Feed Crawler (Batch A + B in parallel) ─────────────────────
+  # 20 feeds split 10/10. Batch A also runs GDELT queries (FEED_START=0).
+  # No AI calls. Target: under 15 minutes per batch.
+  crawl-rss:
+    name: RSS Feed Crawler (${{ matrix.batch }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - batch: A
+            feed_start: '0'
+            feed_end: '9'
+          - batch: B
+            feed_start: '10'
+            feed_end: '19'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,40 +33,13 @@ jobs:
       - name: Install dependencies
         working-directory: ./crawler
         run: npm install
-      - name: Run RSS crawler (feeds 0–27)
+      - name: Run RSS crawler (Batch ${{ matrix.batch }})
         working-directory: ./crawler
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          FEED_START: '0'
-          FEED_END:   '27'
-        run: node crawler.js
-
-  # ── Stage 1B: RSS Feed Crawler — Batch B (feeds 28–end) ─────────────────────
-  # Health, Self-Improvement, Charities, Government, Education, Recruitment,
-  # Real Estate, Financial Services
-  # No AI calls. Runs in parallel with Batch A. Target: under 15 minutes.
-  crawl-rss-b:
-    name: RSS Feed Crawler (B)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: crawler/package.json
-      - name: Install dependencies
-        working-directory: ./crawler
-        run: npm install
-      - name: Run RSS crawler (feeds 28–end)
-        working-directory: ./crawler
-        env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          FEED_START: '28'
-          FEED_END:   '999'
+          FEED_START: ${{ matrix.feed_start }}
+          FEED_END:   ${{ matrix.feed_end }}
         run: node crawler.js
 
   # ── Stage 1C: Facebook Ad Library Scraper ───────────────────────────────────
@@ -96,7 +78,7 @@ jobs:
     name: Queue Analyzer
     runs-on: ubuntu-latest
     timeout-minutes: 55
-    needs: [crawl-rss-a, crawl-rss-b, crawl-facebook]
+    needs: [crawl-rss, crawl-facebook]
     if: always()
     steps:
       - uses: actions/checkout@v4
