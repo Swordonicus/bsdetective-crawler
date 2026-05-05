@@ -4,122 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BSDetective is a Chrome extension + backend system that detects manipulation tactics, logical fallacies, and persuasion patterns in web content. Users click "Analyze This Page" and receive an SPI (Structural Persuasion Index) score with detailed tactic breakdowns. Monetized via Lemon Squeezy with free/founding/pro/family tiers.
-
-## Repository Structure
-
-This is a monorepo-style directory (not git-managed at root). Key components:
-
-- **Root files** (`manifest.json`, `popup.js`, `popup.html`, `background.js`, `content.js`, `styles.css`) — the Chrome extension source (older working copies)
-- **`BSD ext latest 25032026/`** — packaged extension releases
-  - `bsdetective-v2.0.0-CWS/` — Chrome Web Store submission build
-  - `bsdetective-v2.0.0-full/` — full build including Supabase functions, migrations, and TAXONOMY.md
-- **`BSD Crawler/`** — autonomous data pipeline (crawler + analyzer), has its own CLAUDE.md
-- **`bsdetective-backend/supabase/functions/`** — Supabase Edge Functions: `analyze`, `entitlements`, `share-unlock`, `webhook-lemon`
-- **`bsdetective-site/`** — marketing website (bsdetective.io), landing page + legal pages
-- **`icons/`** — extension icons and CWS assets
-
-## Architecture
-
-### Data Flow
-
-1. **Extension** (`popup.js`) extracts page text via `chrome.scripting.executeScript`, sends to `analyze-vnext` Edge Function
-2. **Edge Function** (`analyze-vnext/index.ts`) runs the AI analysis via Anthropic API (Haiku for free tier, Sonnet for paid), caches results by content hash, returns SPI score + tactics
-3. **Crawler pipeline** (`BSD Crawler/`) independently collects articles from RSS feeds and GDELT, queues them in `crawler_queue`, then `analyzer.js` sends them through the same `analyze-vnext` Edge Function and stores results in `crawler_scans`
-
-### Detection Taxonomy
-
-`TAXONOMY.md` (in `BSD ext latest 25032026/bsdetective-v2.0.0-full/`) is the **single source of truth** for all 199 detection patterns across 5 layers:
-
-- **Layer 1** (Academic): Cialdini, Kahneman, Haidt, van der Linden — names used directly, citable
-- **Layer 2** (US Intelligence/Military): KUBARK, FM 3-05.301, CIA PSYOP — translated to plain-English heuristics
-- **Layer 3** (Soviet/KGB): Dezinformatsiya, active measures — named patterns with detection rules
-- **Layer 4** (Practitioner): Compliance psychology, SERE-informed — informs logic only, never surfaced to users
-- **Layer 5** (BSDetective-owned): All user-facing technique names
-
-**Source separation rule**: Layers 2–4 inform detection logic but are NEVER surfaced to users. Layer 5 names appear in results. Layer 1 names appear as `academic_name` references.
-
-**Taxonomy protection rules**:
-- NEVER rebuild TAXONOMY.md from scratch — only append new techniques
-- Every technique has a permanent ID (F01, M15, B07, etc.) — IDs are never reused
-- The Edge Function prompt is DERIVED from TAXONOMY.md, not the other way around
-- When adding techniques: add to TAXONOMY.md first, then update the Edge Function prompt
-
-### Supabase Project
-
-- Project ref: `glxqwdtodzplniyqtpuw`
-- Edge Functions: `analyze-vnext` (main analysis), `analyze` (legacy), `entitlements`, `share-unlock`, `webhook-lemon`
-- Key tables: `analysis_cache`, `scan_log`, `crawler_queue`, `crawler_scans`, `crawler_scan_tactics`, `domain_enrichment`
-- Materialized views: `domain_integrity_weekly`, `tactic_frequency_weekly` (refresh weekly)
-
-### Pricing Tiers
-
-| Tier | Price | Scans | Model |
-|------|-------|-------|-------|
-| Free | $0 | 5/week | claude-haiku-4-5 |
-| Founding Member | $6.99/mo | Unlimited | claude-sonnet-4-6 |
-| Pro | $9.99/mo or $89/yr | Unlimited | claude-sonnet-4-6 |
-| Family | $14.99/mo (5 seats) | Unlimited | claude-sonnet-4-6 |
-
-Checkout via Lemon Squeezy. URLs configured in `popup.js` `CONFIG.UPGRADE_URLS`.
-
-### SPI Score
-
-SPI = Structural Persuasion Index (0–100). Measures density and sophistication of persuasion architecture, NOT truth/accuracy. Risk tiers: minimal (0–15), low (16–35), moderate (36–55), elevated (56–75), high (76–90), critical (91–100).
-
-## Extension Details
-
-- Manifest V3, permissions: `activeTab`, `storage`, `scripting`
-- Content extraction: grabs `<article>` or `<main>` or `<body>`, strips nav/header/footer, truncates to 4,000 chars
-- Dev mode auto-detected via `!('update_url' in chrome.runtime.getManifest())` — grants unlimited Pro-tier scans
-- Weekly scan counter uses Monday-based weeks, stored in `chrome.storage.local`
-- Analysis results show 6 sections: SPI score, The Play, Emotional Targets, Blind Spots (paywalled), Tactics Detected (limited on free), The Verdict
-- Paid features: full blind spots, all tactics (free shows 2), rebuttal generation
+BSDetective Crawler is the autonomous data pipeline for the BSDetective media manipulation detection platform. It collects news articles, queues them for AI analysis, and stores persuasion telemetry (SPI scores, manipulation tactics) in Supabase. This is one component of a larger system that includes a browser extension and website.
 
 ## Commands
 
 ```bash
-# Crawler pipeline (from BSD Crawler/)
-npm install
-npm run crawl                    # run RSS + GDELT crawler
-node analyzer.js                 # process queue through analyze-vnext
-node load-mbfc.js                # populate MBFC bias/factuality data
-
-# Edge Function deployment
-supabase functions deploy analyze-vnext --project-ref glxqwdtodzplniyqtpuw
-
-# Set required secret
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npm install              # install dependencies
+npm run crawl            # run the crawler (node crawler.js)
+node analyzer.js         # process queued items through the analyze-vnext edge function
+node load-mbfc.js        # populate domain_enrichment table with MBFC bias/factuality data
 ```
 
-## Environment Variables
+## Required Environment Variables
 
-- `SUPABASE_URL` — project URL (used by crawler, analyzer, load-mbfc)
-- `SUPABASE_SERVICE_KEY` — service role key (used by crawler, analyzer, load-mbfc)
-- `SUPABASE_ANON_KEY` — anon/publishable key (used by analyzer to call edge function, hardcoded in extension popup.js)
-- `ANTHROPIC_API_KEY` — set as Supabase secret for the edge function
-- `FEED_START` / `FEED_END` — optional, slice feed list for parallel crawler batch jobs
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_SERVICE_KEY` — Supabase service role key (used by all three scripts)
+- `SUPABASE_ANON_KEY` — Supabase anon/publishable key (used only by analyzer.js to call the edge function)
+- `FEED_START` / `FEED_END` — optional, slice the feed list for parallel batch runs (default: all feeds)
 
-## Pending Work
+## Architecture
 
-### 1. Broken RSS Feeds
+### Two-Phase Pipeline
 
-The following feeds in `BSD Crawler/crawler.js` `ALL_FEEDS` are returning 404/403 and need replacement URLs:
+The system is split into two independent scripts that communicate via a Supabase queue table:
 
-- News24 (`news24.com`)
-- EWN (`ewn.co.za`)
-- DW English (`dw.com`)
-- VOA News (`voanews.com`)
-- ZeroHedge (`zerohedge.com`)
-- France24 (`france24.com`)
-- The Guardian (`theguardian.com`)
-- Daily Maverick (`dailymaverick.co.za`)
-- Africa Report (`theafricareport.com`)
+1. **crawler.js** — Collects articles, writes to `crawler_queue` with status `pending`. No AI calls. Two data sources:
+   - **RSS feeds** (`ALL_FEEDS` array, 20 feeds): fetched with `fast-xml-parser` (supports RSS 2.0, Atom, and RDF 1.0 formats), article body extracted via naive HTML stripping. Feeds are sliceable via `FEED_START`/`FEED_END` for parallel GitHub Actions jobs (Batch A: 0–9, Batch B: 10–19).
+   - **GDELT 2.0 Doc API**: free, no auth. Only runs when `FEED_START === 0` (Batch A) to avoid duplicate queries.
 
-### 2. Analyzer MBFC Enrichment Patch
+2. **analyzer.js** — Reads `pending` items from `crawler_queue`, sends body text to the `analyze-vnext` Supabase Edge Function (which runs the AI scoring), writes results to `crawler_scans` and `crawler_scan_tactics`. Marks queue items as `done` or `error`.
 
-`BSD Crawler/analyzer.js` `storeScan()` reads from the in-memory `mbfcCache` and spreads MBFC fields into the `crawler_scans` insert, but `mbfc_bias`, `mbfc_factuality`, and `mbfc_credibility` are not being written correctly to `crawler_scans` rows during queue processing. Needs investigation and fix.
+### Deduplication
 
-### 3. Extension Field Name Check
+Both scripts use `content_hash` (SHA-256 of body text) to skip duplicates. The crawler checks both `crawler_queue` and `crawler_scans` before inserting.
 
-Verify the Chrome extension (`popup.js`) sends the field `text` (not `content`) in the POST body to `analyze-vnext`. Current code at line 238 sends `{ text: pageContent, url, title, tier }` — confirm the Edge Function expects `text` as the field name, not `content`.
+### MBFC Enrichment
+
+`load-mbfc.js` fetches the IDIAP/MBFC CSV dataset, normalizes bias/factuality ratings, derives a credibility tier (HIGH/MIXED/LOW/DISPUTED), and upserts into `domain_enrichment`. The analyzer loads this table into an in-memory cache at startup and attaches MBFC data to each scan row.
+
+### Database Schema (Supabase/Postgres)
+
+Key tables:
+- `crawler_queue` — pending articles awaiting analysis (status: pending → processing → done/error)
+- `crawler_scans` — completed analysis results with SPI scores, tactics, MBFC enrichment
+- `crawler_scan_tactics` — one row per tactic per scan (references `crawler_scans.id`)
+- `domain_enrichment` — MBFC bias/factuality/credibility per domain
+
+Materialized views (refresh weekly):
+- `domain_integrity_weekly` — avg SPI per publisher per week (in-distribution only)
+- `tactic_frequency_weekly` — tactic occurrence trends by region/media class
+
+Schema migrations are in `supabase_migration_.sql` (base) and `enrichment_migration.sql` (MBFC/GDELT columns).
+
+### Version Tracking
+
+Every scan row records `analyzer_version`, `taxonomy_version`, and `prompt_version` (from `SCAN_VERSION` in crawler.js) to allow historical dataset interpretation across prompt/model changes.
+
+### Runtime Constraints
+
+- Crawler has an 18-minute hard budget (`RUN_BUDGET_MS`) to stay within GitHub Actions timeout
+- Analyzer processes up to 80 items per run with 1.2s delay between requests
+- Article content is capped at 8,000 chars; articles under 200 chars are skipped
+
+### MBFC Enrichment in Analyzer
+
+The analyzer uses a `lookupMbfc()` helper that tries `article_domain` then falls back to `publisher_domain` (both www-stripped) when looking up MBFC data from the in-memory cache. This ensures enrichment works even when `article_domain` is NULL or doesn't match the MBFC dataset exactly.
+
+## Deployment
+
+GitHub repo: `Swordonicus/bsdetective-crawler`. Runs on GitHub Actions via `crawler.yml` — daily at 06:00 UTC. The workflow has 4 jobs:
+
+1. **RSS Feed Crawler (A)** — feeds 0–9 (ZA, Africa, UK, US mainstream) + GDELT queries
+2. **RSS Feed Crawler (B)** — feeds 10–19 (state media, alt health, alt finance, international)
+3. **Facebook Ad Library Scraper** — scrapes ad copy, runs in parallel with RSS crawlers
+4. **Queue Analyzer** — waits for all crawlers, then processes up to 80 queued items
+
+Secrets required in GitHub Actions: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`.
+
+### Removed Feeds
+
+Three feeds are commented out with no working replacements as of May 2026:
+- **EWN** (`ewn.co.za`) — no working RSS feed, site removed RSS support
+- **Africa Report** (`theafricareport.com`) — 403 on all feed endpoints
+- **PoliticsWeb** (`politicsweb.co.za`) — Cloudflare-blocked
+
+Consider replacing with SABC News, IOL, or Africanews.
