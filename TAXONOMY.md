@@ -1,6 +1,6 @@
 # BSDetective — CANONICAL DETECTION TAXONOMY
 # ═══════════════════════════════════════════════════════════════
-# VERSION: 2.0.0 | DATE: 2026-03-22 | PATTERNS: 195+
+**VERSION: 2.0.0 | DATE: 2026-03-22 | PATTERNS: 195+ to VERSION: 2.1.0 | DATE: 2026-06-02 | PATTERNS: 264**
 # ═══════════════════════════════════════════════════════════════
 #
 # THIS IS THE SINGLE SOURCE OF TRUTH.
@@ -769,3 +769,258 @@ A10 | LLM Hedging Patterns
 # Layer 5 Display Names:        21   (BSDetective-owned technique names)
 # Enhanced existing (Layer 2-4): 8   (existing patterns with deeper detection rules)
 # ═══════════════════════════════════════════════════════════════
+
+# ============================================================
+# TAXONOMY APPEND — v2.1.0
+# DATE: 2026-06-02
+# PATTERNS ADDED: 65 (A11–A20, C01–C25, I01–I15, O01–O15)
+# NEW TOTAL: 264
+# ============================================================
+# APPEND INSTRUCTIONS:
+# Add this entire block to the end of TAXONOMY.md.
+# Update the header line to: VERSION: 2.1.0 | DATE: 2026-06-02 | PATTERNS: 264
+# Do NOT renumber or modify any existing entries.
+# ============================================================
+
+# ============================================================
+# SECTION D: SYNTHETIC / AI DETECTION (EXPANDED)
+# ============================================================
+
+## D1: AI COORDINATION & AMPLIFICATION SIGNALS
+# (Expands existing A01–A10. New patterns: A11–A20.)
+# Layer notes: A11–A13, A18 = data product / media ratings.
+# A16–A17, A20 = consumer extension (surfaced to user).
+# A14–A15, A19 = compliance / procurement.
+
+A11 | Coordinated Inauthenticity Signal
+Multiple accounts posting near-identical framing within tight time windows; unnatural engagement velocity suggesting orchestrated rather than organic spread.
+
+A12 | Bot Amplification Pattern
+Disproportionate sharing-to-reading ratio; engagement from accounts with no organic history or consistent human activity.
+
+A13 | Algorithmic Engagement Optimisation
+Content structured for maximum platform algorithm reward (rage bait, cliffhanger hooks, engagement farming) rather than informational value.
+
+A14 | Synthetic Consensus Manufacturing
+AI-generated comments or reviews creating false impression of agreement; repetitive semantic patterns across ostensibly independent voices.
+
+A15 | Template-Driven Persuasion
+Detectable fill-in-the-blank structure suggesting mass-produced persuasion campaigns (e.g., outreach emails, astroturf petitions).
+
+A16 | AI Sycophancy Loop
+AI response reinforcing user's existing belief rather than providing balanced information; escalating agreement pattern regardless of accuracy.
+
+A17 | Echo Chamber Amplification
+Content algorithmically served to reinforce existing viewpoint with no counterpoint exposure signal.
+
+A18 | Provenance Void
+Content with no verifiable origin, no author attribution, no editorial chain; provenance metadata stripped or absent.
+
+A19 | Synthetic Urgency Injection
+AI-generated time-pressure language inserted into otherwise factual content to drive immediate action.
+
+A20 | Model Confidence Mimicry
+AI-generated text presenting speculative claims with high-certainty linguistic markers ("clearly", "undeniably", "the evidence is overwhelming") without supporting evidence.
+
+# ============================================================
+# SECTION E: COMMERCIAL / UX MANIPULATION
+# ============================================================
+
+## E1: DARK PATTERNS & COMMERCIAL MANIPULATION
+# New category: C01–C25.
+# Layer notes: Feeds Manipulation Index and brand scoring.
+# NOT for consumer popup alerts — aggregate/B2B use.
+# C03, C04, C06, C09, C10, C14, C21, C22 = regulatory compliance triggers.
+
+C01 | False Scarcity Display
+"Only X left" / "Y people viewing" with no verifiable inventory data; artificial scarcity manufactured to drive purchase urgency.
+
+C02 | Artificial Urgency Timer
+Countdown timers on offers that reset or persist beyond their stated deadline; urgency with no genuine external constraint.
+
+C03 | Drip Pricing
+Core price displayed prominently; mandatory fees (booking fees, service charges, delivery) revealed incrementally through checkout flow.
+
+C04 | Subscription Trap Architecture
+Easy sign-up flow paired with deliberately complex cancellation path; asymmetric friction by design.
+
+C05 | Confirmshaming
+Opt-out option worded to make user feel guilty or foolish for declining ("No, I don't want to save money").
+
+C06 | Forced Continuity
+Free trial converts to paid subscription with minimal, buried, or delayed notification before charge occurs.
+
+C07 | Hidden Cost Reveal
+Material costs (shipping, service fees, taxes) withheld until final checkout step after user has invested time in the purchase flow.
+
+C08 | Decoy Pricing Architecture
+Third pricing option exists solely to make the target option appear as best value by comparison.
+
+C09 | Dark Consent Pattern
+Pre-checked consent boxes; consent buried in terms; asymmetric accept/reject design making refusal harder than agreement.
+
+C10 | Roach Motel Design
+Easy data entry or account creation; deliberately obstructed data deletion or account closure path.
+
+C11 | Social Proof Fabrication
+Testimonials, reviews, or usage counts that cannot be independently verified or are structurally unverifiable.
+
+C12 | Manufactured Consensus Display
+"Most popular" / "Editor's Choice" / "Recommended" labels with no transparent, auditable selection criteria.
+
+C13 | Loyalty Lock-in Friction
+Points or rewards programmes designed to create switching costs rather than deliver genuine user value.
+
+C14 | Personalised Price Discrimination
+Different prices shown to different users based on behavioural profiling without disclosure of the practice.
+
+C15 | Bait and Switch Listing
+Advertised product, price, or feature materially differs from what is available at the point of purchase.
+
+C16 | Nagging / Repeated Prompt
+Persistent re-prompts after user has declined (cookie consent banners, newsletter popups, app rating requests).
+
+C17 | Interface Interference
+Visual hierarchy deliberately designed to make company-preferred option appear as default or the only option.
+
+C18 | Trick Wording
+Double negatives or deliberately confusing language in consent and opt-out flows designed to produce unintended agreement.
+
+C19 | Artificial Bundle Lock
+Useful feature gated behind unnecessary bundle to inflate perceived value of the bundle.
+
+C20 | Gamification Pressure
+Streaks, badges, or loss-aversion mechanics designed to drive compulsive engagement rather than deliver user value.
+
+C21 | Addictive Design Pattern
+Infinite scroll, autoplay, variable reward schedules engineered for compulsive use beyond user intent.
+
+C22 | Virtual Currency Obfuscation
+In-app currencies that obscure the real-money cost of transactions through abstraction and conversion friction.
+
+C23 | Emotional Checkout Manipulation
+Charity donation requests, guilt messaging, or fear appeals injected at point of purchase to increase spend.
+
+C24 | Review Gating
+Selectively soliciting reviews only from satisfied customers; structurally suppressing negative feedback from reaching public record.
+
+C25 | Anchoring Price Display
+Original price inflated or fabricated to make discounted current price appear as a genuine deal.
+
+# ============================================================
+# SECTION F: INSTITUTIONAL / STATE MANIPULATION
+# ============================================================
+
+## F1: COORDINATED NARRATIVE OPERATIONS
+# New category: I01–I15.
+# Layer notes: Detects operational-level campaigns, not individual techniques.
+# I01–I15 = government/defence, data product, media ratings.
+# Complements existing Layer 2/3 technique-level patterns in M-series.
+
+I01 | Narrative Seeding Operation
+Same novel framing appearing simultaneously across multiple unconnected sources with no identifiable originator; coordinated narrative launch.
+
+I02 | Controlled Opposition Signal
+Apparently critical voice that consistently fails to challenge core claims; criticism structured to reinforce rather than genuinely threaten the target position.
+
+I03 | Strategic Ambiguity in Official Communication
+Diplomatic or corporate language deliberately crafted to be interpreted multiple ways; plausible deniability architecturally built into wording.
+
+I04 | Information Flooding Operation
+Coordinated release of high-volume, low-quality information to bury a specific story or finding beneath noise.
+
+I05 | Legitimacy Laundering Chain
+Claims originating from an unreliable source, cited by progressively more credible outlets without independent verification at each step.
+
+I06 | Proxy Voice Deployment
+Institutional message delivered through an apparently independent commentator, academic, or NGO without disclosure of relationship.
+
+I07 | Grievance Exploitation Campaign
+Real social tension systematically amplified beyond proportion to destabilise rather than resolve the underlying issue.
+
+I08 | False Flag Attribution
+Content designed to appear as if produced by a different group in order to discredit that group.
+
+I09 | Temporal Coordination Signal
+Multiple sources publishing aligned narratives within an unusually narrow time window suggesting pre-coordination rather than independent reporting.
+
+I10 | Platform Migration Trail
+Narrative tested on fringe platform, refined, then deployed on mainstream platform — detectable via consistent language or framing evolution across platforms.
+
+I11 | Sanctions / Policy Narrative Engineering
+Coordinated media framing that precedes or immediately follows a policy action, suggesting the narrative was prepared in advance of the decision.
+
+I12 | Election Interference Pattern
+Targeted content surge in specific geographic or demographic segments timed to election windows.
+
+I13 | Economic Destabilisation Narrative
+Coordinated amplification of economic fear signals disproportionate to underlying data; designed to erode confidence rather than inform.
+
+I14 | Institutional Capture Signal
+Regulatory or academic body consistently producing output aligned with a single funder or interest group without disclosure of that relationship.
+
+I15 | Strategic Leak Pattern
+"Leaked" information that serves the apparent leaker's interests; leak timing aligned with political or commercial calendar events.
+
+# ============================================================
+# SECTION G: FINANCIAL / LEGAL / PROFESSIONAL OBFUSCATION
+# ============================================================
+
+## G1: COMPLIANCE & PROFESSIONAL COMMUNICATION MANIPULATION
+# New category: O01–O15.
+# Layer notes: Primary compliance scanning layer.
+# Directly serves FCA/FINRA/FSCA compliance and procurement scanning use cases.
+# O01–O07 = financial services / regulatory compliance.
+# O08–O11 = procurement scanning.
+# O12–O15 = compliance, media ratings, securities regulation.
+
+O01 | Jargon Shield
+Technical or legal language used to obscure rather than clarify; plain-English equivalent would materially change the reader's assessment of the content.
+
+O02 | Risk Burial
+Material risk disclosures placed in locations or formats designed to minimise reader attention: footnotes, dense paragraphs, end of document, fine print.
+
+O03 | Performance Cherry-Picking
+Selective time windows, metrics, or benchmarks chosen to present a favourable picture; unfavourable periods or comparators omitted without disclosure.
+
+O04 | Greenwashing Signal
+Environmental claims without verifiable data, specific measurable commitments, or independent third-party certification.
+
+O05 | ESG-Washing Pattern
+Social or governance claims that are aspirational statements or intentions presented as current established practice.
+
+O06 | Earnings Call Language Manipulation
+Euphemistic language applied to negative results ("headwinds", "challenging environment", "transitional period"); certainty language applied to projections presented as likely outcomes.
+
+O07 | Prospectus Obfuscation
+Material terms buried in document structure; key exclusions or conditions placed in appendices or cross-referenced sections requiring active navigation to find.
+
+O08 | Contract Asymmetry
+Terms creating disproportionate obligation on one party; penalty clauses or unilateral modification rights buried in boilerplate.
+
+O09 | Vendor Proposal Inflation
+Unsubstantiated capability claims, vague deliverable definitions, or manufactured urgency in sales proposals and RFP responses.
+
+O10 | Artificial Deadline in Negotiation
+"This offer expires" / "Board approval window closing" framing with no verifiable external constraint driving the deadline.
+
+O11 | Manufactured Social Proof in B2B
+"Industry-leading" / "Trusted by X companies" claims without named references or independently verifiable data.
+
+O12 | Regulatory Capture Language
+Industry body or standard presented as independent authority when the body is funded or controlled by the entities it regulates.
+
+O13 | Selective Disclosure Pattern
+Material information shared with some stakeholders and withheld from others; asymmetric information distribution creating unfair advantage.
+
+O14 | Fee Obfuscation Architecture
+Fee structures deliberately designed to be incomparable across providers; fees bundled or unbundled selectively to appear competitive in isolation.
+
+O15 | Qualification Stripping
+Caveats, conditions, and limitations present in source material removed in derivative communications (press releases, marketing, social posts), changing the meaning of the original claim.
+
+# ============================================================
+# END OF APPEND — v2.1.0
+# Total patterns: 264
+# Next append should begin at A21, C26, I16, O16 or new prefix
+# ============================================================
