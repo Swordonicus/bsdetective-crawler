@@ -74,6 +74,8 @@ Every scan row records `analyzer_version`, `taxonomy_version`, and `prompt_versi
 
 The analyzer uses a `lookupMbfc()` helper that tries `article_domain` then falls back to `publisher_domain` (both www-stripped) when looking up MBFC data from the in-memory cache. This ensures enrichment works even when `article_domain` is NULL or doesn't match the MBFC dataset exactly.
 
+History (fixed May 2026): enrichment was silently failing because (a) `article_domain` was NULL for many queue items, (b) there was no fallback to `publisher_domain`, and (c) domain mismatches (e.g. `dailymail.com` vs `dailymail.co.uk`). After the fix, existing scans were backfilled: 22 → 2,239 of 2,768 enriched.
+
 ## Deployment
 
 GitHub repo: `Swordonicus/bsdetective-crawler`. Runs on GitHub Actions via `crawler.yml` — daily at 06:00 UTC. The workflow has 4 jobs:
@@ -91,7 +93,7 @@ being phased out on the Supabase project.
 
 Three feeds are commented out with no working replacements as of May 2026:
 - **EWN** (`ewn.co.za`) — no working RSS feed, site removed RSS support
-- **Africa Report** (`theafricareport.com`) — 403 on all feed endpoints
+- **Africa Report** (`theafricareport.com`) — 403 on all feed endpoints, likely paywalled
 - **PoliticsWeb** (`politicsweb.co.za`) — Cloudflare-blocked
 
 Consider replacing with SABC News, IOL, or Africanews.
