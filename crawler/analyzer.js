@@ -16,7 +16,7 @@ const ANALYZE_TIMEOUT_MS   = 35000;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-async function scanContent(text, url) {
+async function scanContent(text, url, source) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
   let response;
@@ -27,9 +27,8 @@ async function scanContent(text, url) {
       headers: {
         'Content-Type':  'application/json',
         'apikey':        SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ text, url, title: '', tier: 'free' }),
+      body: JSON.stringify({ text, url, title: '', tier: 'free', source }),
     });
   } finally {
     clearTimeout(timeout);
@@ -242,7 +241,11 @@ async function main() {
 
     try {
       console.log(`🔍 [${item.source_type}] ${item.publisher_name} | ${item.headline_text?.slice(0, 50)}`);
-      const result = await scanContent(item.body_text, item.article_url);
+      const result = await scanContent(
+        item.body_text,
+        item.article_url,
+        item.source_type === 'facebook_ad' ? 'facebook_ad_scraper' : 'crawler'
+      );
       await storeScan(item, result);
       await markQueueItem(item.id, 'done');
       const mbfc = lookupMbfc(item);

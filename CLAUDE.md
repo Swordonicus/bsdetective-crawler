@@ -18,8 +18,12 @@ node load-mbfc.js        # populate domain_enrichment table with MBFC bias/factu
 ## Required Environment Variables
 
 - `SUPABASE_URL` — Supabase project URL
-- `SUPABASE_SERVICE_KEY` — Supabase service role key (used by all three scripts)
-- `SUPABASE_ANON_KEY` — Supabase anon/publishable key (used only by analyzer.js to call the edge function)
+- `SUPABASE_SERVICE_KEY` — Supabase secret API key (`sb_secret_...`); used by all three
+  scripts for database access. Legacy `service_role` JWT keys are deprecated (June 2026
+  key migration) and must not be used.
+- `SUPABASE_ANON_KEY` — Supabase publishable API key (`sb_publishable_...`); used only by
+  analyzer.js to call the analyze-vnext edge function, sent on the `apikey` header only
+  (publishable keys are not JWTs and must never be sent as `Authorization: Bearer`).
 - `FEED_START` / `FEED_END` — optional, slice the feed list for parallel batch runs (default: all feeds)
 
 ## Architecture
@@ -79,7 +83,9 @@ GitHub repo: `Swordonicus/bsdetective-crawler`. Runs on GitHub Actions via `craw
 3. **Facebook Ad Library Scraper** — scrapes ad copy, runs in parallel with RSS crawlers
 4. **Queue Analyzer** — waits for all crawlers, then processes up to 80 queued items
 
-Secrets required in GitHub Actions: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`.
+Secrets required in GitHub Actions: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (`sb_secret_...`),
+`SUPABASE_ANON_KEY` (`sb_publishable_...`). New-format API keys only — legacy JWT keys are
+being phased out on the Supabase project.
 
 ### Removed Feeds
 
